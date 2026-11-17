@@ -183,3 +183,24 @@ def infer_missing_columns(df: pd.DataFrame) -> list[str]:
     from src.data.synthetic import CANONICAL_COLUMNS
 
     return [c for c in CANONICAL_COLUMNS if c not in df.columns]
+
+
+def ensure_canonical_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Add any absent canonical column so the feature pipeline can run.
+
+    Prediction only needs the columns the model consumes. Missing numeric columns
+    are filled with NaN (imputed downstream) and missing text columns with a
+    placeholder, so a partial spreadsheet still predicts instead of raising
+    KeyError.
+    """
+    import numpy as np
+
+    from src.data.synthetic import CANONICAL_COLUMNS
+
+    text_defaults = {"state": "unknown", "district": "unknown", "crop": "unknown", "season": "Kharif"}
+    out = df.copy()
+    for col in CANONICAL_COLUMNS:
+        if col in out.columns:
+            continue
+        out[col] = text_defaults[col] if col in text_defaults else np.nan
+    return out

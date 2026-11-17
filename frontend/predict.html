@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     <div class="grid cols-1-2">
       <div class="card">
         <h3 class="card-title">Conditions</h3>
-        <p class="card-sub">Enter the season's conditions to predict yield</p>
+        <p class="card-sub">Enter conditions to predict yield</p>
         <div id="form"></div>
         <div class="btn-row" style="margin-top:12px">
           <button class="btn btn-primary" id="predict">Predict yield</button>
@@ -36,12 +36,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div>
         <div class="card">
           <h3 class="card-title">Prediction</h3>
-          <p class="card-sub">Point estimate with an 80% prediction interval</p>
+          <p class="card-sub">Predicted value with an 80% range</p>
           <div id="result">${emptyState("Enter conditions and press Predict.")}</div>
         </div>
         <div class="card" style="margin-top:16px">
           <h3 class="card-title">What-if sensitivity</h3>
-          <p class="card-sub">Vary one input while holding the rest fixed</p>
+          <p class="card-sub">Change one input, keep the rest the same</p>
           <label class="field"><span>Feature to vary</span><select id="whatif-feature">
             ${WHATIF.map(f => `<option value="${f}">${f}</option>`).join("")}
           </select></label>
@@ -52,26 +52,37 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
-        <h3 class="card-title">Batch prediction</h3>
-        <p class="card-sub">Upload a CSV of conditions; download predictions with intervals</p>
+        <h3 class="card-title">Upload a spreadsheet</h3>
+        <p class="card-sub">Upload an Excel or CSV of conditions to see every row predicted</p>
         <div class="dropzone" id="batch-drop">
           ${ICONS.upload}
-          <div><strong>Drop a CSV here</strong> or click to browse</div>
-          <input type="file" id="batch-file" accept=".csv,.xlsx" hidden />
+          <div><strong>Drop an Excel or CSV here</strong> or click to browse</div>
+          <input type="file" id="batch-file" accept=".csv,.xlsx,.xls" hidden />
+        </div>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-sm" id="batch-download" disabled>Download predictions (CSV)</button>
         </div>
       </div>
       <div class="card">
         <h3 class="card-title">Recent predictions</h3>
-        <p class="card-sub">History of single predictions</p>
+        <p class="card-sub">Your recent predictions</p>
         <div class="table-wrap" style="max-height:320px;overflow:auto"><table class="data" id="history">
           <thead><tr><th>When</th><th>Crop</th><th>Yield</th><th>Range</th></tr></thead><tbody></tbody>
         </table></div>
       </div>
     </div>
+
+    <div class="card" id="batch-card" style="margin-top:16px;display:none">
+      <h3 class="card-title">Spreadsheet predictions</h3>
+      <p class="card-sub" id="batch-sub"></p>
+      <div class="table-wrap" style="max-height:460px;overflow:auto">
+        <table class="data" id="batch-table"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
   `;
 
   html("form", FIELDS.map(([name, type, def]) => `
-    <label class="field"><span>${fmt.title(name)}</span>
+    <label class="field"><span>${fieldLabel(name)}</span>
       <input data-name="${name}" type="${type}" value="${def}" />
     </label>`).join(""));
 
@@ -117,7 +128,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ...(r.pred_high[0] != null ? [
           { x: r.values, y: r.pred_high, type: "scatter", mode: "lines", line: { width: 0 }, showlegend: false, hoverinfo: "skip" },
           { x: r.values, y: r.pred_low, type: "scatter", mode: "lines", line: { width: 0 }, fill: "tonexty",
-            fillcolor: "rgba(184,255,61,0.14)", name: "80% interval", hoverinfo: "skip" },
+            fillcolor: "rgba(22,163,74,0.14)", name: "80% interval", hoverinfo: "skip" },
         ] : []),
       ], { margin: { l: 52, r: 20, t: 20, b: 44 }, xaxis: { title: feature }, yaxis: { title: "Predicted t/ha" } });
     } catch (e) { html("chart-whatif", emptyState(e.message)); }
@@ -125,23 +136,48 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const bd = document.getElementById("batch-drop");
   const bf = document.getElementById("batch-file");
+  const downloadBtn = document.getElementById("batch-download");
+  let lastBatchFile = null;
   bd.addEventListener("click", () => bf.click());
   ["dragover", "dragenter"].forEach(ev => bd.addEventListener(ev, e => { e.preventDefault(); bd.classList.add("drag"); }));
   ["dragleave", "drop"].forEach(ev => bd.addEventListener(ev, e => { e.preventDefault(); bd.classList.remove("drag"); }));
-  bd.addEventListener("drop", e => { if (e.dataTransfer.files[0]) batch(e.dataTransfer.files[0]); });
-  bf.addEventListener("change", () => { if (bf.files[0]) batch(bf.files[0]); });
+  bd.addEventListener("drop", e => { if (e.dataTransfer.files[0]) batchView(e.dataTransfer.files[0]); });
+  bf.addEventListener("change", () => { if (bf.files[0]) batchView(bf.files[0]); });
 
-  async function batch(file) {
+  const NUM_COLS = new Set(["year", "rainfall_mm", "temp_mean_c", "yield_t_ha", "y_pred", "pred_low", "pred_high"]);
+
+  async function batchView(file) {
+    lastBatchFile = file;
     try {
-      const res = await API.upload("/api/predict/batch", file);
+      const r = await API.upload("/api/predict/batch-view", file);
+      document.getElementById("batch-card").style.display = "";
+      document.getElementById("batch-sub").textContent =
+        `${fmt.int(r.n_rows)} rows from ${fmt.text(r.filename)} · ${r.interval_level ? fmt.pct(r.interval_level) + " interval" : "no interval"}`;
+      document.querySelector("#batch-table thead").innerHTML =
+        `<tr>${r.columns.map(c => `<th>${fieldLabel(c)}</th>`).join("")}</tr>`;
+      document.querySelector("#batch-table tbody").innerHTML = r.rows.map(row => `
+        <tr>${r.columns.map(c => {
+          const v = row[c];
+          if (NUM_COLS.has(c)) return `<td class="num">${fmt.num(v)}</td>`;
+          return `<td>${fmt.text(v)}</td>`;
+        }).join("")}</tr>`).join("");
+      downloadBtn.disabled = false;
+      toast(`Predicted ${fmt.int(r.n_rows)} rows`, "ok");
+    } catch (e) { toast(e.message, "err"); }
+  }
+
+  downloadBtn.addEventListener("click", async () => {
+    if (!lastBatchFile) return;
+    try {
+      const res = await API.upload("/api/predict/batch", lastBatchFile);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = "yieldvision_predictions.csv"; a.click();
       URL.revokeObjectURL(url);
-      toast("Batch predictions downloaded", "ok");
+      toast("Predictions downloaded", "ok");
     } catch (e) { toast(e.message, "err"); }
-  }
+  });
 
   async function loadHistory() {
     try {

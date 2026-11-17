@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 from backend.deps import db_session
 from backend.schemas import PredictRequest, WhatIfRequest
 from src.data import db as dbmod
-from src.data.ingest import canonicalise, load_crop_file
+from src.data import mongo
+from src.data.ingest import canonicalise, ensure_canonical_columns, load_crop_file
 from src.data.validate import validate
 from src.models import registry
 from src.models.intervals import IntervalModel, whatif_curve
@@ -83,6 +84,19 @@ def predict_single(payload: PredictRequest, session: Session = Depends(db_sessio
     session.add(record)
     session.flush()
 
+    mongo.save_prediction(
+        {
+            "source": "single",
+            "prediction_id": record.prediction_id,
+            "model_id": model_id,
+            "inputs": body,
+            "y_pred": result["y_pred"],
+            "pred_low": result["pred_low"],
+            "pred_high": result["pred_high"],
+            "warnings": result["warnings"],
+        }
+    )
+
     result["prediction_id"] = record.prediction_id
     return result
 
@@ -133,7 +147,7 @@ async def predict_batch(
             detail={"message": "Validation failed", "summary": report.summary(), "issues": [i.to_dict() for i in report.issues[:50]]},
         )
 
-    frame = df.copy()
+    frame = ensure_canonical_columns(df)
     if interval_model is not None:
         preds, low, high = interval_model.predict_interval(pipeline, frame)
         frame["y_pred"] = preds
@@ -151,6 +165,71 @@ async def predict_batch(
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=yieldvision_predictions.csv"},
     )
+
+
+@router.post("/batch-view")
+async def predict_batch_view(
+    file: UploadFile = File(...),
+    model_id: int | None = None,
+    session: Session = Depends(db_session),
+) -> dict:
+    """Upload a CSV/Excel of conditions and get predictions back as JSON.
+
+    Unlike ``/batch`` (which streams a CSV download), this returns the rows with
+    their predictions so the frontend can display an interactive table.
+    """
+    stored = _active_payload(session, model_id)
+    pipeline = stored.get("pipeline")
+    if pipeline is None:
+        raise HTTPException(status_code=400, detail="The selected model has no persisted pipeline.")
+    interval_model = (
+        IntervalModel.from_dict(stored["interval_model"]) if stored.get("interval_model") else None
+    )
+
+    content = await file.read()
+    try:
+        df = canonicalise(load_crop_file(io.BytesIO(content), file.filename))
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read file: {exc}") from exc
+
+    if df.empty:
+        raise HTTPException(status_code=422, detail="The uploaded file has no rows.")
+
+    frame = ensure_canonical_columns(df)
+    if interval_model is not None:
+        preds, low, high = interval_model.predict_interval(pipeline, frame)
+        frame["y_pred"] = preds
+        frame["pred_low"] = low
+        frame["pred_high"] = high
+        level = interval_model.nominal_coverage
+    else:
+        frame["y_pred"] = pipeline.predict(frame)
+        frame["pred_low"] = None
+        frame["pred_high"] = None
+        level = None
+
+    display_cols = [
+        c
+        for c in ["state", "district", "crop", "season", "year", "rainfall_mm", "temp_mean_c", "yield_t_ha"]
+        if c in frame.columns
+    ]
+    out_cols = display_cols + ["y_pred", "pred_low", "pred_high"]
+    records = frame[out_cols].replace({np.nan: None}).to_dict(orient="records")
+
+    for row in records:
+        for key, value in list(row.items()):
+            if isinstance(value, (np.integer,)):
+                row[key] = int(value)
+            elif isinstance(value, (np.floating,)):
+                row[key] = None if np.isnan(value) else float(value)
+
+    return {
+        "filename": file.filename,
+        "n_rows": int(len(records)),
+        "columns": out_cols,
+        "interval_level": level,
+        "rows": records,
+    }
 
 
 @router.get("/history")

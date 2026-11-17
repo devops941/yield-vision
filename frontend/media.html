@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Image & video</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const view = renderShell();
+  view.innerHTML = `
+    <div class="grid cols-2-1">
+      <div class="card">
+        <h3 class="card-title">Upload a field photo or video</h3>
+        <p class="card-sub">We measure how green the field looks, then predict the yield.</p>
+        <div class="dropzone" id="drop">
+          ${ICONS.camera}
+          <div><strong>Choose an image or video</strong></div>
+          <div class="muted">JPG, PNG, WEBP, MP4, MOV, AVI, MKV</div>
+          <input type="file" id="file" accept="image/*,video/*" style="display:none" />
+        </div>
+        <div class="grid cols-2" style="margin-top:14px">
+          <label class="field"><span>Crop</span><select id="crop"><option>rice</option><option>wheat</option><option>maize</option><option>cotton</option></select></label>
+          <label class="field"><span>District</span><input id="district" value="Ludhiana" /></label>
+        </div>
+        <button class="btn btn-primary" id="analyse" disabled>Analyse and predict</button>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Preview</h3>
+        <p class="card-sub">Your uploaded field</p>
+        <div id="preview">${emptyState("Upload a file to see it here.")}</div>
+      </div>
+    </div>
+
+    <div id="results" style="margin-top:16px"></div>
+  `;
+
+  let selected = null;
+  const drop = document.getElementById("drop");
+  const fileInput = document.getElementById("file");
+  const analyseBtn = document.getElementById("analyse");
+
+  drop.addEventListener("click", () => fileInput.click());
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("drag"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("drag"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    drop.classList.remove("drag");
+    if (e.dataTransfer.files.length) { selected = e.dataTransfer.files[0]; showFile(); }
+  });
+  fileInput.addEventListener("change", () => {
+    if (fileInput.files.length) { selected = fileInput.files[0]; showFile(); }
+  });
+
+  function showFile() {
+    analyseBtn.disabled = false;
+    drop.querySelector("strong").textContent = selected.name;
+    if (selected.type.startsWith("image/")) {
+      const url = URL.createObjectURL(selected);
+      html("preview", `<img class="preview" src="${url}" alt="field preview" />`);
+    } else {
+      html("preview", `<div class="chip">Video ready to analyse</div>`);
+    }
+  }
+
+  analyseBtn.addEventListener("click", async () => {
+    if (!selected) return;
+    analyseBtn.disabled = true;
+    analyseBtn.innerHTML = '<span class="spinner"></span> Working…';
+    try {
+      const upload = await API.upload("/api/media/upload", selected, {
+        crop: document.getElementById("crop").value,
+        district: document.getElementById("district").value,
+      });
+      const pred = await API.post(`/api/media/${upload.media_id}/predict`);
+      renderResults(upload, pred);
+      toast("Prediction ready", "ok");
+    } catch (e) {
+      toast(e.message, "err");
+    } finally {
+      analyseBtn.disabled = false;
+      analyseBtn.textContent = "Analyse and predict";
+    }
+  });
+
+  function renderResults(up, pr) {
+    const idx = up.indices || {};
+    html("results", `
+      <div class="grid cols-2-1">
+        <div class="card">
+          <h3 class="card-title">Predicted yield</h3>
+          <p class="card-sub">${up.kind === "video" ? `${up.frames} frames analysed` : "Single image analysed"}</p>
+          <div class="result-big">${fmt.num(pr.y_pred)}<small> t/ha</small></div>
+          ${pr.pred_low != null ? `<div class="muted" style="margin-top:6px">Range ${fmt.num(pr.pred_low)} – ${fmt.num(pr.pred_high)} t/ha</div>` : ""}
+          <div style="margin-top:12px"><span class="chip">Model: ${fmt.text(pr.model_name)}</span></div>
+          ${(pr.warnings || []).length ? `<div style="margin-top:10px">${pr.warnings.map(w => `<div class="badge warn" style="margin:2px 4px 2px 0">${w}</div>`).join("")}</div>` : ""}
+        </div>
+        <div class="card">
+          <h3 class="card-title">Field health</h3>
+          <p class="card-sub">Measured from the image</p>
+          <div class="kv"><span>Greenness (vigour)</span><span>${fmt.pct(up.vigour)}</span></div>
+          <div class="kv"><span>Green leaf index</span><span>${fmt.num(idx.gli, 3)}</span></div>
+          <div class="kv"><span>Green pixel share</span><span>${fmt.pct(idx.green_fraction)}</span></div>
+          <div class="kv"><span>Brightness</span><span>${fmt.num(idx.brightness, 3)}</span></div>
+          ${up.kind === "video" ? `<div class="kv"><span>Frame variation</span><span>${fmt.num(up.frame_variation, 4)}</span></div>` : ""}
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3 class="card-title">Conditions used for the prediction</h3>
+        <p class="card-sub">Read from the image, so the model runs without a data file</p>
+        <div class="table-wrap">
+          <table class="data"><thead><tr><th>Input</th><th>Value</th><th>Input</th><th>Value</th></tr></thead>
+          <tbody>${inputRows(pr.derived_inputs || {})}</tbody></table>
+        </div>
+      </div>
+    `);
+  }
+
+  function inputRows(inputs) {
+    const keys = Object.keys(inputs);
+    let rows = "";
+    for (let i = 0; i < keys.length; i += 2) {
+      const a = keys[i], b = keys[i + 1];
+      const val = (k) => (typeof inputs[k] === "number" ? fmt.num(inputs[k]) : fmt.text(inputs[k]));
+      rows += `<tr><td>${fieldLabel(a)}</td><td class="num">${val(a)}</td>
+        <td>${b ? fieldLabel(b) : ""}</td><td class="num">${b ? val(b) : ""}</td></tr>`;
+    }
+    return rows;
+  }
+});
+</script>
+</body>
+</html>

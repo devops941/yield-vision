@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="btn-row" style="justify-content:space-between">
         <div>
           <h3 class="card-title">Validation scheme</h3>
-          <p class="card-sub">Temporal is the headline scheme. Random K-fold is optimistic and shown for reference.</p>
+          <p class="card-sub">Temporal is the main check. Random K-fold is shown for reference only.</p>
         </div>
         <div class="pill-row" id="scheme-pills">
           <span class="pill active" data-scheme="temporal">Temporal</span>
@@ -31,7 +31,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="card" style="margin-top:16px">
       <h3 class="card-title">Model comparison</h3>
-      <p class="card-sub">Lower RMSE and higher R² are better</p>
+      <p class="card-sub">Lower RMSE and higher R² are better.</p>
       <div class="table-wrap"><table class="data" id="compare">
         <thead><tr><th>Model</th><th>N</th><th>MAE</th><th>RMSE</th><th>R²</th><th>MAPE %</th><th>Bias</th><th>Skill</th></tr></thead>
         <tbody></tbody>
@@ -41,7 +41,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
         <h3 class="card-title">Actual vs predicted</h3>
-        <p class="card-sub">Active model on held-out data</p>
+        <p class="card-sub">Active model on unseen data</p>
         <div class="chart" id="chart-actual"></div>
       </div>
       <div class="card">
@@ -53,7 +53,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="card" style="margin-top:16px">
       <h3 class="card-title">Error by scope</h3>
-      <p class="card-sub">Where the model struggles most</p>
+      <p class="card-sub">Error by crop and year</p>
       <div class="grid cols-2">
         <div><div class="chart sm" id="chart-crop"></div></div>
         <div><div class="chart sm" id="chart-year"></div></div>
@@ -62,7 +62,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="card" style="margin-top:16px">
       <h3 class="card-title">Worst predictions</h3>
-      <p class="card-sub">Largest absolute errors with likely reasons</p>
+      <p class="card-sub">Biggest errors</p>
       <div class="table-wrap" style="max-height:360px;overflow:auto"><table class="data" id="worst">
         <thead><tr><th>Actual</th><th>Predicted</th><th>Abs error</th><th>District</th><th>Crop</th><th>Year</th></tr></thead>
         <tbody></tbody>
@@ -149,7 +149,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       drawChart("chart-year", [
         { x: byYear.map(m => m.scope_value), y: byYear.map(m => m.rmse), type: "scatter", mode: "lines+markers",
           line: { color: THEME.accent3 }, name: "RMSE" },
-      ], { margin: { l: 48, r: 16, t: 30, b: 40 }, yaxis: { title: "RMSE t/ha" }, showlegend: false, title: { text: "RMSE by year", font: { size: 12, color: THEME.text } } });
+      ], { margin: { l: 48, r: 16, t: 30, b: 40 }, yaxis: { title: "RMSE t/ha" }, xaxis: { title: "Year", dtick: 1, tickformat: "d" }, showlegend: false, title: { text: "RMSE by year", font: { size: 12, color: THEME.text } } });
     } else html("chart-year", emptyState("Not enough rows per year."));
   }
 

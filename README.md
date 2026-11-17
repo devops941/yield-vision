@@ -5,9 +5,10 @@
 YieldVision turns raw district-level crop records into validated data, historical
 trend insight, engineered climate features, trained regression models and
 uncertainty-aware yield forecasts — all served through a FastAPI backend and a
-plain HTML/JavaScript + Plotly.js frontend. There is **no Streamlit**; Python owns
-every piece of data processing, feature engineering, modelling and report logic,
-and the frontend only displays results.
+plain HTML/JavaScript + Plotly.js frontend. It also predicts yield from a field
+photo or video. There is **no Streamlit**; Python owns every piece of data
+processing, feature engineering, modelling and report logic, and the frontend
+only displays results.
 
 ---
 
@@ -27,8 +28,15 @@ and the frontend only displays results.
   interval, and extrapolation warnings when inputs fall outside the training range.
 - **Explainability** — permutation and impurity importance, partial dependence
   curves and a plain-language summary.
+- **Image and video prediction** — upload a field photo or clip; vegetation
+  indices (ExG, GLI, VARI, NGRDI) are extracted and mapped onto the model inputs
+  to predict yield from imagery alone.
 - **Reports and exports** — a PDF analysis report, cleaned-data CSV, a results
   workbook and batch prediction downloads.
+- **MongoDB Atlas storage** — uploads, records, media, predictions, model
+  registry entries and reports are mirrored to MongoDB (with a SQLite cache).
+- **Light, full-width UI** — a white canvas with a leaf-green palette, plain
+  wording, and a layout that fills the screen.
 
 ---
 
@@ -40,8 +48,9 @@ and the frontend only displays results.
 | Machine learning | scikit-learn 1.9 |
 | Statistics | SciPy 1.18, statsmodels 0.15, pymannkendall 1.4 |
 | Backend | FastAPI 0.163, Uvicorn, Pydantic 2.14 |
-| Database | SQLite via SQLAlchemy 2.1 |
+| Database | SQLite via SQLAlchemy 2.1 + MongoDB Atlas via pymongo 4.20 |
 | Reports | Jinja2, matplotlib, WeasyPrint |
+| Media | Pillow, imageio (image and video analysis) |
 | Frontend | HTML, vanilla JavaScript, Plotly.js |
 | Tests | pytest 9.2 |
 
@@ -65,14 +74,30 @@ uvicorn backend.main:app --reload --port 8000
 
 Open <http://localhost:8000>. Interactive API docs are at `/docs`.
 
+### MongoDB (optional)
+
+Storage is mirrored to MongoDB Atlas. Put the connection string in a `.env`
+file at the project root (it is git-ignored):
+
+```bash
+MONGO_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/
+MONGO_DB=yieldvision
+```
+
+If `MONGO_URI` is missing or the cluster is unreachable the app still runs; the
+SQLite cache handles everything. `GET /health` reports the MongoDB status. Tests
+set `YIELDVISION_NO_MONGO=1` so they stay offline.
+
 ### Or load data from the browser
 
 1. Open the **Dashboard** and press **Load sample dataset**, or go to
    **Upload & Validate** and drop your own CSV.
 2. Review the validation issues, fix/ignore/exclude as needed, then **Commit**.
-3. Walk through **Trend Explorer → Feature Engineering → Train Models**.
-4. Activate a model, then use **Predict**, **Accuracy Dashboard**,
-   **Explainability** and **Reports & Export**.
+3. Walk through **Trends → Features → Train models**.
+4. Activate a model, then use **Predict**, **Accuracy**, **Explainability** and
+   **Reports & export**.
+5. On **Image & video**, drop a field photo or clip to predict from imagery.
+   On **Predict**, upload an Excel or CSV to see every row predicted in a table.
 
 ---
 
@@ -122,10 +147,11 @@ yield-vision/
 │   ├── schemas.py          # Pydantic request/response models
 │   ├── deps.py             # shared dependencies (DB session)
 │   └── routers/            # uploads, explorer, features, models,
-│                           # predict, export, report
+│                           # predict, media, export, report
 ├── frontend/               # HTML + JS + Plotly.js (no Streamlit)
 │   ├── index.html          # dashboard
 │   ├── upload.html         # upload, validate, review, commit
+│   ├── media.html          # image and video prediction
 │   ├── explorer.html       # trend explorer
 │   ├── features.html       # feature engineering
 │   ├── models.html         # training and registry

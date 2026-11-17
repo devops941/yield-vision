@@ -14,10 +14,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   const view = renderShell();
   view.innerHTML = `
     <section class="hero">
-      <div class="tag"><span class="dot"></span> Climate · Soil · Yield intelligence</div>
-      <h2>Turn weather and soil data into confident yield forecasts.</h2>
-      <p>YieldVision validates raw crop data, uncovers historical trends, engineers climate features,
-         trains and compares regression models, then predicts yield with an honest uncertainty range.</p>
+      <div class="tag"><span class="dot"></span> Crop yield prediction</div>
+      <h2>Predict crop yield from weather and soil.</h2>
+      <p>Upload your crop, weather and soil data. YieldVision checks it, finds trends, trains models and predicts yield with a range.</p>
       <div class="btn-row">
         <button class="btn btn-primary" id="go-sample">Load sample dataset</button>
         <a class="btn" href="upload.html">Upload your data</a>
@@ -31,8 +30,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="grid cols-2-1" style="margin-top:16px">
       <div class="card">
-        <h3 class="card-title">Yield trajectory</h3>
-        <p class="card-sub">Mean yield per year across the loaded dataset</p>
+        <h3 class="card-title">Yield over time</h3>
+        <p class="card-sub">Average yield each year</p>
         <div class="chart" id="chart-trend"></div>
       </div>
       <div class="card">
@@ -44,13 +43,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
-        <h3 class="card-title">Pipeline status</h3>
-        <p class="card-sub">Where you are in the workflow</p>
+        <h3 class="card-title">Progress</h3>
+        <p class="card-sub">Your progress</p>
         <div id="pipeline-status"></div>
       </div>
       <div class="card">
         <h3 class="card-title">Quick actions</h3>
-        <p class="card-sub">Jump straight in</p>
+        <p class="card-sub">Shortcuts</p>
         <div class="grid cols-2" id="quick"></div>
       </div>
     </div>

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from backend.deps import create_job, db_session, get_job, list_jobs, update_job
 from backend.schemas import TrainRequest
 from src.data import db as dbmod
+from src.data import mongo
 from src.features.engineer import FeatureConfig
 from src.models import registry
 from src.models.service import train_and_register
@@ -88,7 +89,20 @@ def job_status(job_id: str) -> dict:
 @router.get("")
 def list_models(session: Session = Depends(db_session)) -> dict:
     """Model registry with status and headline metrics."""
-    return {"models": registry.list_models(session)}
+    models = registry.list_models(session)
+    for model in models:
+        mongo.save_model(
+            {
+                "model_id": model["model_id"],
+                "name": model["name"],
+                "algo": model["algo"],
+                "version": model["version"],
+                "is_active": model["is_active"],
+                "train_rows": model["train_rows"],
+                "metrics": model["metrics"],
+            }
+        )
+    return {"models": models}
 
 
 @router.get("/compare")
@@ -203,9 +217,8 @@ def model_pdp(
 @router.get("/{model_id}/summary")
 def model_summary(model_id: int, session: Session = Depends(db_session)) -> dict:
     """Plain-language summary of the drivers for a model."""
-    from sqlalchemy import select
-
     import pandas as pd
+    from sqlalchemy import select
 
     from src.models.explain import plain_language_summary
 

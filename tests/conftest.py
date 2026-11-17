@@ -38,6 +38,9 @@ def tmp_db(tmp_path):
 @pytest.fixture()
 def api_client(tmp_path, monkeypatch):
     """TestClient bound to an isolated temporary SQLite database."""
+    # Keep tests hermetic: never reach out to MongoDB Atlas.
+    monkeypatch.setenv("YIELDVISION_NO_MONGO", "1")
+
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
 

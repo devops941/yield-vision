@@ -87,9 +87,26 @@ const fmt = {
   },
 };
 
+/* Human-friendly labels for the canonical column names. */
+const FIELD_LABELS = {
+  state: "State", district: "District", crop: "Crop", season: "Season",
+  year: "Year", area_ha: "Area (ha)", production_t: "Production (t)",
+  yield_t_ha: "Yield (t/ha)", rainfall_mm: "Rainfall (mm)",
+  temp_mean_c: "Avg temp (°C)", temp_max_c: "Max temp (°C)", temp_min_c: "Min temp (°C)",
+  humidity_pct: "Humidity (%)", soil_n_kgha: "Soil nitrogen", soil_p_kgha: "Soil phosphorus",
+  soil_k_kgha: "Soil potassium", soil_ph: "Soil pH", soil_oc_pct: "Soil organic carbon",
+  fertilizer_kgha: "Fertilizer (kg/ha)", irrigated_frac: "Irrigated share",
+  pesticide_kgha: "Pesticide (kg/ha)", y_pred: "Predicted yield",
+  pred_low: "Low estimate", pred_high: "High estimate", model_id: "Model",
+};
+
+function fieldLabel(name) {
+  return FIELD_LABELS[name] || fmt.title(name);
+}
+
 /* ------------------------------------------------------------------- icons -- */
 const ICONS = {
-  logo: '<svg viewBox="0 0 24 24" fill="none" stroke="#04120c" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c0-6 3-10 8-11-1 6-4 9-8 11z"/><path d="M12 21C12 15 9 11 4 10c1 6 4 9 8 11z"/><path d="M12 21v-6"/></svg>',
+  logo: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c0-6 3-10 8-11-1 6-4 9-8 11z"/><path d="M12 21C12 15 9 11 4 10c1 6 4 9 8 11z"/><path d="M12 21v-6"/></svg>',
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',
   upload: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>',
   trend: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-6 4 3 5-8 4 4"/><path d="M3 21h18"/></svg>',
@@ -100,6 +117,7 @@ const ICONS = {
   target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/></svg>',
   doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>',
   menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>',
   empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 15h4"/></svg>',
 };
 
@@ -109,31 +127,33 @@ const NAV = [
     { href: "index.html", label: "Dashboard", icon: "home" },
   ]},
   { group: "Data", items: [
-    { href: "upload.html", label: "Upload & Validate", icon: "upload" },
-    { href: "explorer.html", label: "Trend Explorer", icon: "trend" },
-    { href: "features.html", label: "Feature Engineering", icon: "layers" },
+    { href: "upload.html", label: "Upload data", icon: "upload" },
+    { href: "media.html", label: "Image & video", icon: "camera" },
+    { href: "explorer.html", label: "Trends", icon: "trend" },
+    { href: "features.html", label: "Features", icon: "layers" },
   ]},
   { group: "Modelling", items: [
-    { href: "models.html", label: "Train Models", icon: "cpu" },
-    { href: "accuracy.html", label: "Accuracy Dashboard", icon: "gauge" },
+    { href: "models.html", label: "Train models", icon: "cpu" },
+    { href: "accuracy.html", label: "Accuracy", icon: "gauge" },
     { href: "explain.html", label: "Explainability", icon: "bulb" },
   ]},
   { group: "Deliver", items: [
     { href: "predict.html", label: "Predict", icon: "target" },
-    { href: "reports.html", label: "Reports & Export", icon: "doc" },
+    { href: "reports.html", label: "Reports & export", icon: "doc" },
   ]},
 ];
 
 const PAGE_META = {
   "index.html": { title: "Dashboard", crumb: "Overview" },
-  "upload.html": { title: "Upload & Validate", crumb: "Data · ingestion" },
-  "explorer.html": { title: "Trend Explorer", crumb: "Data · analytics" },
-  "features.html": { title: "Feature Engineering", crumb: "Data · features" },
-  "models.html": { title: "Train Models", crumb: "Modelling · training" },
-  "accuracy.html": { title: "Accuracy Dashboard", crumb: "Modelling · evaluation" },
-  "explain.html": { title: "Explainability", crumb: "Modelling · interpretation" },
-  "predict.html": { title: "Predict Yield", crumb: "Deliver · inference" },
-  "reports.html": { title: "Reports & Export", crumb: "Deliver · outputs" },
+  "upload.html": { title: "Upload data", crumb: "Data" },
+  "media.html": { title: "Image & video", crumb: "Data" },
+  "explorer.html": { title: "Trends", crumb: "Data" },
+  "features.html": { title: "Features", crumb: "Data" },
+  "models.html": { title: "Train models", crumb: "Modelling" },
+  "accuracy.html": { title: "Accuracy", crumb: "Modelling" },
+  "explain.html": { title: "Explainability", crumb: "Modelling" },
+  "predict.html": { title: "Predict", crumb: "Deliver" },
+  "reports.html": { title: "Reports & export", crumb: "Deliver" },
 };
 
 function currentPage() {
@@ -165,7 +185,7 @@ function renderShell() {
       </div>
       <nav>${navHtml}</nav>
       <div class="sidebar-foot">
-        <strong>Climate · Soil · Yield</strong>
+        <strong>YieldVision</strong>
         <span id="side-status">Checking data…</span>
       </div>
     </aside>
@@ -194,14 +214,14 @@ function renderShell() {
 /* ----------------------------------------------------------- plotly theme -- */
 const THEME = {
   paper: "rgba(0,0,0,0)",
-  grid: "rgba(150,170,220,0.12)",
-  text: "#a7b6d4",
-  accent: "#b8ff3d",
-  accent2: "#7b8cff",
-  accent3: "#c17bff",
-  warn: "#ffc14d",
-  danger: "#ff6f8b",
-  palette: ["#b8ff3d", "#7b8cff", "#46e3ff", "#c17bff", "#ffc14d", "#ff6f8b", "#7ee01a"],
+  grid: "#e6ece6",
+  text: "#4c5f52",
+  accent: "#16a34a",
+  accent2: "#3b82c4",
+  accent3: "#e9a23b",
+  warn: "#e9a23b",
+  danger: "#d9534f",
+  palette: ["#16a34a", "#3b82c4", "#e9a23b", "#7bc043", "#8b5cf6", "#d9534f", "#2f9e57"],
 };
 
 function baseLayout(extra = {}) {
@@ -211,7 +231,7 @@ function baseLayout(extra = {}) {
     font: { family: "Inter, sans-serif", color: THEME.text, size: 12 },
     margin: { l: 52, r: 20, t: 42, b: 44 },
     colorway: THEME.palette,
-    hoverlabel: { bgcolor: "#0d1220", bordercolor: THEME.grid, font: { color: "#f2f6ff" } },
+    hoverlabel: { bgcolor: "#ffffff", bordercolor: "#e3e9e3", font: { color: "#14261a" } },
     xaxis: { gridcolor: THEME.grid, zerolinecolor: THEME.grid, linecolor: THEME.grid },
     yaxis: { gridcolor: THEME.grid, zerolinecolor: THEME.grid, linecolor: THEME.grid },
     legend: { orientation: "h", y: 1.12, x: 0, bgcolor: "rgba(0,0,0,0)" },
