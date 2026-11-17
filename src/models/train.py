@@ -106,6 +106,7 @@ def train_all_models(
     for name in models:
         all_true: list[float] = []
         all_pred: list[float] = []
+        all_test: list = []
         fold_metrics: list[dict] = []
         pipeline = None
 
@@ -132,11 +133,13 @@ def train_all_models(
             y_true = test_df[TARGET].to_numpy(dtype=float)
             all_true.extend(y_true.tolist())
             all_pred.extend(np.asarray(preds, dtype=float).tolist())
+            all_test.append(test_df)
             fold_metrics.append(compute_metrics(y_true, preds))
 
         y_true_arr = np.asarray(all_true, dtype=float)
         y_pred_arr = np.asarray(all_pred, dtype=float)
         metrics = compute_metrics(y_true_arr, y_pred_arr)
+        test_frame = pd.concat(all_test, ignore_index=True) if all_test else pd.DataFrame()
         results[name] = {
             "model": name,
             "scheme": scheme,
@@ -145,6 +148,7 @@ def train_all_models(
             "pipeline": pipeline,
             "y_true": y_true_arr,
             "y_pred": y_pred_arr,
+            "test_df": test_frame,
             "n_folds": len(fold_metrics),
         }
     return results

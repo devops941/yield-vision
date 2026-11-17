@@ -42,7 +42,7 @@ def save_model(
         "name": name,
         "algo": algo,
         "version": version,
-        "saved_at": dt.datetime.utcnow().isoformat(),
+        "saved_at": dt.datetime.now(dt.timezone.utc).replace(tzinfo=None).isoformat(),
     }
     joblib.dump(payload, file_path)
 

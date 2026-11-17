@@ -59,7 +59,7 @@ class Upload(Base):
     __tablename__ = "uploads"
     upload_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     filename: Mapped[str | None] = mapped_column(String)
-    uploaded_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    uploaded_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
     status: Mapped[str] = mapped_column(String, default="validated")
     n_rows: Mapped[int] = mapped_column(Integer, default=0)
     n_errors: Mapped[int] = mapped_column(Integer, default=0)
@@ -90,7 +90,7 @@ class CorrectionAudit(Base):
     old_value: Mapped[str | None] = mapped_column(Text)
     new_value: Mapped[str | None] = mapped_column(Text)
     note: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
 
 
 class Record(Base):
@@ -125,7 +125,7 @@ class ModelRegistry(Base):
     name: Mapped[str] = mapped_column(String)
     algo: Mapped[str | None] = mapped_column(String)
     version: Mapped[int] = mapped_column(Integer, default=1)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
     file_path: Mapped[str | None] = mapped_column(String)
     params_json: Mapped[str | None] = mapped_column(Text)
     feature_list_json: Mapped[str | None] = mapped_column(Text)
@@ -175,7 +175,7 @@ class UserPrediction(Base):
     __tablename__ = "user_predictions"
     prediction_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     model_id: Mapped[int | None] = mapped_column(ForeignKey("model_registry.model_id"))
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
     inputs_json: Mapped[str | None] = mapped_column(Text)
     y_pred: Mapped[float | None] = mapped_column(Float)
     pred_low: Mapped[float | None] = mapped_column(Float)
@@ -198,7 +198,7 @@ class TrendResult(Base):
 class ReportRow(Base):
     __tablename__ = "reports"
     report_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
     file_path: Mapped[str | None] = mapped_column(String)
     scope_json: Mapped[str | None] = mapped_column(Text)
 
@@ -206,7 +206,7 @@ class ReportRow(Base):
 class FeatureSetRow(Base):
     __tablename__ = "feature_sets"
     feature_set_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=dt.datetime.utcnow)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime, default=lambda: dt.datetime.now(dt.timezone.utc).replace(tzinfo=None))
     config_json: Mapped[str | None] = mapped_column(Text)
     n_rows: Mapped[int | None] = mapped_column(Integer)
     n_features: Mapped[int | None] = mapped_column(Integer)

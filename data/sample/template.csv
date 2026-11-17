@@ -1,0 +1,2 @@
+state,district,crop,season,year,area_ha,production_t,yield_t_ha,rainfall_mm,temp_mean_c,temp_max_c,temp_min_c,humidity_pct,soil_n_kgha,soil_p_kgha,soil_k_kgha,soil_ph,soil_oc_pct,fertilizer_kgha,irrigated_frac,pesticide_kgha
+Punjab,Ludhiana,rice,Kharif,2020,45000,162000,3.6,950,27.5,35.0,20.0,70,260,22,210,6.6,0.55,130,0.8,2.2

@@ -33,3 +33,29 @@ def tmp_db(tmp_path):
     path = tmp_path / "test.db"
     db.init_db(path)
     return path
+
+
+@pytest.fixture()
+def api_client(tmp_path, monkeypatch):
+    """TestClient bound to an isolated temporary SQLite database."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    from src.data import db
+
+    path = tmp_path / "api.db"
+    engine = create_engine(f"sqlite:///{path}", future=True)
+    db.Base.metadata.create_all(engine)
+    session_local = sessionmaker(bind=engine, future=True)
+
+    # Point the module-level singletons at the temporary database.
+    monkeypatch.setattr(db, "_ENGINE", engine, raising=False)
+    monkeypatch.setattr(db, "_SessionLocal", session_local, raising=False)
+
+    # The report module and models use the same globals.
+    from fastapi.testclient import TestClient
+
+    from backend.main import app
+
+    with TestClient(app) as client:
+        yield client

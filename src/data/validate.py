@@ -53,6 +53,10 @@ class ValidationReport:
     def n_warnings(self) -> int:
         return sum(1 for i in self.issues if i.severity == "warning")
 
+    @property
+    def has_blocking_errors(self) -> bool:
+        return self.n_errors > 0
+
     def summary(self) -> str:
         return (
             f"{self.n_rows:,} rows: {self.n_errors} errors, {self.n_warnings} warnings"
