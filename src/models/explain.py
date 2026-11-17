@@ -158,12 +158,42 @@ def plain_language_summary(importances: pd.DataFrame, crop: str | None = None) -
             seen.append(label)
     crop_text = f" for {crop}" if crop else ""
     driver_text = " and ".join(seen[:3]) if seen else "several"
-    examples = ", ".join(str(f) for f in top["feature"].head(3))
+    examples = ", ".join(_pretty_feature(f) for f in top["feature"].head(3))
     return (
         f"{driver_text.capitalize()} factors were the strongest drivers of yield{crop_text} "
-        f"in this dataset (top features: {examples}). "
+        f"in this dataset (top signals: {examples}). "
         "These results describe association in the data, not proof of causation."
     )
+
+
+FEATURE_LABELS = {
+    "crop": "crop",
+    "season": "season",
+    "state": "state",
+    "district": "district",
+    "year": "year",
+    "area_ha": "area",
+    "rainfall_mm": "rainfall",
+    "temp_mean_c": "average temperature",
+    "temp_max_c": "maximum temperature",
+    "temp_min_c": "minimum temperature",
+    "humidity_pct": "humidity",
+    "soil_n_kgha": "soil nitrogen",
+    "soil_p_kgha": "soil phosphorus",
+    "soil_k_kgha": "soil potassium",
+    "soil_ph": "soil pH",
+    "soil_oc_pct": "soil organic carbon",
+    "fertilizer_kgha": "fertilizer use",
+    "irrigated_frac": "irrigated share",
+    "pesticide_kgha": "pesticide use",
+    "gdd": "growing degree days",
+    "heat_stress_days": "heat-stress days",
+}
+
+
+def _pretty_feature(name: str) -> str:
+    """Turn a canonical column name into something readable in prose."""
+    return FEATURE_LABELS.get(str(name), str(name).replace("_", " "))
 
 
 def coefficients_table(pipeline) -> list[dict[str, Any]]:

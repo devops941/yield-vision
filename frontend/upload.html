@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YieldVision · Upload & Validate</title>
-<link rel="stylesheet" href="/static/css/style.css" />
-<script src="/static/js/app.js"></script>
+<title>YieldVision · Upload a file</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
@@ -14,32 +14,32 @@ document.addEventListener("DOMContentLoaded", () => {
   view.innerHTML = `
     <div class="grid cols-2-1">
       <div class="card">
-        <h3 class="card-title">Upload data</h3>
-        <p class="card-sub">CSV, Excel or JSON. Column names are matched automatically.</p>
+        <h3 class="card-title">Upload your data</h3>
+        <p class="card-sub">CSV, Excel or JSON. We match your column names automatically.</p>
         <div class="dropzone" id="drop">
           ${ICONS.upload}
-          <div><strong>Drop a file here</strong> or click to browse</div>
-          <div class="muted" style="margin-top:6px">district · crop · season · year · yield · rainfall · temperature · soil</div>
+          <div><strong>Drop a file here</strong> or click to choose one</div>
+          <div class="muted" style="margin-top:6px">Needs: district, crop, season, year, yield, rainfall and temperature</div>
           <input type="file" id="file" accept=".csv,.xlsx,.xls,.json" hidden />
         </div>
         <div class="btn-row" style="margin-top:14px">
           <a class="btn btn-ghost btn-sm" href="/api/template" download>Download CSV template</a>
-          <button class="btn btn-ghost btn-sm" id="load-sample">Load sample dataset</button>
+          <button class="btn btn-ghost btn-sm" id="load-sample">Load sample data</button>
         </div>
       </div>
 
       <div class="card">
-        <h3 class="card-title">Validation summary</h3>
-        <p class="card-sub">Each row is checked against the rules</p>
-        <div id="summary">${emptyState("Upload a file to validate it.")}</div>
+        <h3 class="card-title">Check results</h3>
+        <p class="card-sub">Every row is checked before it can be saved</p>
+        <div id="summary">${emptyState("Upload a file to check it.")}</div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
       <div class="btn-row" style="justify-content:space-between">
         <div>
-          <h3 class="card-title">Issues</h3>
-          <p class="card-sub">Fix, ignore or skip each issue. Every action is saved.</p>
+          <h3 class="card-title">Things to review</h3>
+          <p class="card-sub">Fix, ignore or skip each one. Every choice is recorded.</p>
         </div>
         <div class="btn-row">
           <select id="sev-filter" style="width:auto">
@@ -47,18 +47,18 @@ document.addEventListener("DOMContentLoaded", () => {
             <option value="error">Errors</option>
             <option value="warning">Warnings</option>
           </select>
-          <button class="btn btn-primary btn-sm" id="commit" disabled>Commit clean data</button>
+          <button class="btn btn-primary btn-sm" id="commit" disabled>Save clean rows</button>
         </div>
       </div>
       <div class="table-wrap" style="margin-top:12px"><table class="data" id="issues-table">
-        <thead><tr><th>Row</th><th>Column</th><th>Value</th><th>Check</th><th>Severity</th><th>Message</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody><tr><td colspan="8">${emptyState("No issues yet.")}</td></tr></tbody>
+        <thead><tr><th>Row</th><th>Column</th><th>Value</th><th>Check</th><th>Level</th><th>Message</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody><tr><td colspan="8">${emptyState("No problems found yet.")}</td></tr></tbody>
       </table></div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3 class="card-title">Upload history</h3>
-      <p class="card-sub">Recent files</p>
+      <h3 class="card-title">Past uploads</h3>
+      <p class="card-sub">Files you have uploaded</p>
       <div class="table-wrap"><table class="data" id="uploads-table">
         <thead><tr><th>ID</th><th>File</th><th>Rows</th><th>Errors</th><th>Warnings</th><th>Status</th><th>Uploaded</th></tr></thead>
         <tbody></tbody>
@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await loadIssues();
       await loadUploads();
       document.getElementById("commit").disabled = r.blocking;
-      toast(`Validated ${fmt.int(r.summary.n_rows)} rows`, r.summary.n_errors ? "info" : "ok");
+      toast(`Checked ${fmt.int(r.summary.n_rows)} rows`, r.summary.n_errors ? "info" : "ok");
     } catch (e) {
       toast(e.message, "err");
       html("summary", emptyState(e.message));
@@ -98,7 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="kv"><span>Rows</span><span>${fmt.int(r.summary.n_rows)}</span></div>
       <div class="kv"><span>Errors</span><span>${r.summary.n_errors ? `<span class="badge err">${r.summary.n_errors}</span>` : '<span class="badge ok">0</span>'}</span></div>
       <div class="kv"><span>Warnings</span><span>${r.summary.n_warnings ? `<span class="badge warn">${r.summary.n_warnings}</span>` : '<span class="badge ok">0</span>'}</span></div>
-      <div class="kv"><span>Status</span><span>${r.status === "validated" ? '<span class="badge ok">validated</span>' : '<span class="badge err">rejected</span>'}</span></div>
+      <div class="kv"><span>Status</span><span>${r.status === "validated" ? '<span class="badge ok">ready to save</span>' : '<span class="badge err">needs fixes</span>'}</span></div>
       ${r.missing_columns && r.missing_columns.length ? `<div class="kv"><span>Missing columns</span><span class="mono">${r.missing_columns.join(", ")}</span></div>` : ""}
       <div class="muted" style="margin-top:10px">${total} issue${total === 1 ? "" : "s"} found for review.</div>
     `);
@@ -163,7 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.disabled = true;
     try {
       const r = await API.post(`/api/uploads/${currentUpload}/commit`, { duplicate_policy: "keep_first" });
-      toast(`Committed ${fmt.int(r.inserted)} clean rows`, "ok");
+      toast(`Saved ${fmt.int(r.inserted)} clean rows`, "ok");
       await loadUploads();
       refreshSideStatus();
     } catch (e) { toast(e.message, "err"); }
@@ -175,11 +175,11 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Loading…';
     try {
       const r = await API.post("/api/datasets/sample");
-      toast(`Loaded ${fmt.int(r.inserted)} synthetic records`, "ok");
+      toast(`Loaded ${fmt.int(r.inserted)} sample records`, "ok");
       await loadUploads();
       refreshSideStatus();
     } catch (e) { toast(e.message, "err"); }
-    finally { btn.disabled = false; btn.textContent = "Load sample dataset"; }
+    finally { btn.disabled = false; btn.textContent = "Load sample data"; }
   });
 
   async function loadUploads() {

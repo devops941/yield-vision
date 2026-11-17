@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YieldVision · Train Models</title>
-<link rel="stylesheet" href="/static/css/style.css" />
-<script src="/static/js/app.js"></script>
+<title>YieldVision · Train models</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
@@ -19,24 +19,24 @@ document.addEventListener("DOMContentLoaded", () => {
     ["random_forest", "Random Forest"],
     ["hist_gradient_boosting", "Histogram Gradient Boosting"],
   ];
-  const SCHEMES = [["temporal", "Temporal (headline)"], ["group", "GroupKFold by district"], ["random", "Random K-fold (optimistic)"]];
+  const SCHEMES = [["temporal", "By time (the fair test)"], ["group", "By district"], ["random", "Random split (optimistic)"]];
 
   view.innerHTML = `
     <div class="grid cols-2-1">
       <div class="card">
-        <h3 class="card-title">Select models</h3>
-        <p class="card-sub">Train models and compare their accuracy.</p>
+        <h3 class="card-title">Pick the models to try</h3>
+        <p class="card-sub">We train each one and compare how well it predicts.</p>
         <div id="model-opts"></div>
-        <h3 class="card-title" style="margin-top:14px">Validation schemes</h3>
+        <h3 class="card-title" style="margin-top:14px">How to test them</h3>
         <div id="scheme-opts"></div>
         <div class="grid cols-2" style="margin-top:14px">
-          <label class="field"><span>Test years (temporal)</span><input type="number" id="test-years" value="4" min="1" max="12" /></label>
-          <label class="field"><span>Data source</span><select id="dataset">
+          <label class="field"><span>Years held back for testing</span><input type="number" id="test-years" value="4" min="1" max="12" /></label>
+          <label class="field"><span>Which data</span><select id="dataset">
             <option value="database">Committed database</option>
-            <option value="sample">Regenerate sample</option>
+            <option value="sample">Fresh sample data</option>
           </select></label>
         </div>
-        <label class="check"><input type="checkbox" id="tune" /> Tune hyperparameters (RandomizedSearchCV, slower)</label>
+        <label class="check"><input type="checkbox" id="tune" /> Search for better settings (slower)</label>
         <div class="btn-row" style="margin-top:12px">
           <button class="btn btn-primary" id="train">Start training</button>
           <button class="btn btn-ghost" id="refresh">Refresh registry</button>
@@ -44,16 +44,16 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
       <div class="card">
         <h3 class="card-title">Training progress</h3>
-        <p class="card-sub">Runs as a background job</p>
-        <div id="progress">${emptyState("No job running.")}</div>
+        <p class="card-sub">Runs in the background — you can stay on this page</p>
+        <div id="progress">${emptyState("No training running.")}</div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3 class="card-title">Model registry</h3>
-      <p class="card-sub">Saved models with their scores. Activate the one used for predictions.</p>
+      <h3 class="card-title">Saved models</h3>
+      <p class="card-sub">Each model with its score. Activate the one you want to use for predictions.</p>
       <div class="table-wrap"><table class="data" id="registry">
-        <thead><tr><th>ID</th><th>Model</th><th>Version</th><th>RMSE</th><th>R²</th><th>MAE</th><th>Skill</th><th>Active</th><th></th></tr></thead>
+        <thead><tr><th>ID</th><th>Model</th><th>Version</th><th>RMSE</th><th>R²</th><th>MAE</th><th>Better than baseline</th><th>In use</th><th></th></tr></thead>
         <tbody></tbody>
       </table></div>
     </div>
@@ -72,7 +72,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const met = m.metrics.temporal || Object.values(m.metrics)[0] || {};
       return `<tr>
         <td class="num">${m.model_id}</td>
-        <td>${m.name}</td>
+        <td>${modelLabel(m.name)}</td>
         <td class="num">v${m.version}</td>
         <td class="num">${fmt.num(met.rmse, 3)}</td>
         <td class="num">${fmt.num(met.r2, 3)}</td>
@@ -123,7 +123,7 @@ document.addEventListener("DOMContentLoaded", () => {
         clearInterval(timer);
         document.getElementById("train").disabled = false;
         document.getElementById("train").textContent = "Start training";
-        if (job.status === "completed") { toast("Training complete", "ok"); loadRegistry(); refreshSideStatus(); }
+        if (job.status === "completed") { toast("Training finished", "ok"); loadRegistry(); refreshSideStatus(); }
         else toast("Training failed: " + job.error, "err");
       }
     }, 900);

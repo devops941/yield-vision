@@ -1,7 +1,7 @@
 /* ============================================================================
    YieldVision shared frontend runtime
    - API client, toast system, formatters
-   - Sidebar/topbar shell renderer with the 2026 dark-glass design
+   - Sidebar/topbar shell renderer for the light YieldVision theme
    - Plotly theming helpers
    ========================================================================= */
 
@@ -104,6 +104,20 @@ function fieldLabel(name) {
   return FIELD_LABELS[name] || fmt.title(name);
 }
 
+/* Human-friendly names for the model identifiers. */
+const MODEL_LABELS = {
+  baseline_crop_season: "Baseline · mean by crop-season",
+  baseline_district_history: "Baseline · district history",
+  linear: "Linear regression",
+  ridge: "Ridge regression",
+  random_forest: "Random forest",
+  hist_gradient_boosting: "Gradient boosting",
+};
+
+function modelLabel(name) {
+  return MODEL_LABELS[name] || fmt.title(name);
+}
+
 /* ------------------------------------------------------------------- icons -- */
 const ICONS = {
   logo: '<svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21c0-6 3-10 8-11-1 6-4 9-8 11z"/><path d="M12 21C12 15 9 11 4 10c1 6 4 9 8 11z"/><path d="M12 21v-6"/></svg>',
@@ -119,41 +133,49 @@ const ICONS = {
   menu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
   camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.2"/></svg>',
   empty: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 15h4"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10a2.1 2.1 0 0 0-3-3L5 17v3z"/><path d="M13.5 6.5l4 4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12.5 4.5 4.5L19 7"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>',
 };
 
 /* -------------------------------------------------------------------- nav -- */
 const NAV = [
-  { group: "Overview", items: [
+  { group: "Start here", items: [
     { href: "index.html", label: "Dashboard", icon: "home" },
   ]},
-  { group: "Data", items: [
-    { href: "upload.html", label: "Upload data", icon: "upload" },
-    { href: "media.html", label: "Image & video", icon: "camera" },
+  { group: "Add your data", items: [
+    { href: "entry.html", label: "Data entry", icon: "edit" },
+    { href: "upload.html", label: "Upload a file", icon: "upload" },
+    { href: "media.html", label: "Photo & video", icon: "camera" },
+  ]},
+  { group: "Understand the data", items: [
     { href: "explorer.html", label: "Trends", icon: "trend" },
     { href: "features.html", label: "Features", icon: "layers" },
   ]},
-  { group: "Modelling", items: [
+  { group: "Build the model", items: [
     { href: "models.html", label: "Train models", icon: "cpu" },
     { href: "accuracy.html", label: "Accuracy", icon: "gauge" },
-    { href: "explain.html", label: "Explainability", icon: "bulb" },
+    { href: "explain.html", label: "What drives yield", icon: "bulb" },
   ]},
-  { group: "Deliver", items: [
-    { href: "predict.html", label: "Predict", icon: "target" },
-    { href: "reports.html", label: "Reports & export", icon: "doc" },
+  { group: "Get results", items: [
+    { href: "predict.html", label: "Predict yield", icon: "target" },
+    { href: "reports.html", label: "Reports", icon: "doc" },
   ]},
 ];
 
 const PAGE_META = {
-  "index.html": { title: "Dashboard", crumb: "Overview" },
-  "upload.html": { title: "Upload data", crumb: "Data" },
-  "media.html": { title: "Image & video", crumb: "Data" },
-  "explorer.html": { title: "Trends", crumb: "Data" },
-  "features.html": { title: "Features", crumb: "Data" },
-  "models.html": { title: "Train models", crumb: "Modelling" },
-  "accuracy.html": { title: "Accuracy", crumb: "Modelling" },
-  "explain.html": { title: "Explainability", crumb: "Modelling" },
-  "predict.html": { title: "Predict", crumb: "Deliver" },
-  "reports.html": { title: "Reports & export", crumb: "Deliver" },
+  "index.html": { title: "Dashboard", crumb: "Start here" },
+  "entry.html": { title: "Data entry", crumb: "Add your data" },
+  "upload.html": { title: "Upload a file", crumb: "Add your data" },
+  "media.html": { title: "Photo & video", crumb: "Add your data" },
+  "explorer.html": { title: "Trends", crumb: "Understand the data" },
+  "features.html": { title: "Features", crumb: "Understand the data" },
+  "models.html": { title: "Train models", crumb: "Build the model" },
+  "accuracy.html": { title: "Accuracy", crumb: "Build the model" },
+  "explain.html": { title: "What drives yield", crumb: "Build the model" },
+  "predict.html": { title: "Predict yield", crumb: "Get results" },
+  "reports.html": { title: "Reports", crumb: "Get results" },
 };
 
 function currentPage() {
@@ -180,7 +202,7 @@ function renderShell() {
         <div class="brand-mark">${ICONS.logo}</div>
         <div>
           <div class="brand-name">YieldVision</div>
-          <div class="brand-sub">Crop Yield Engine</div>
+          <div class="brand-sub">Crop yield engine</div>
         </div>
       </div>
       <nav>${navHtml}</nav>
@@ -214,14 +236,14 @@ function renderShell() {
 /* ----------------------------------------------------------- plotly theme -- */
 const THEME = {
   paper: "rgba(0,0,0,0)",
-  grid: "#e6ece6",
-  text: "#4c5f52",
-  accent: "#16a34a",
+  grid: "#e3ece3",
+  text: "#42584a",
+  accent: "#1f9d55",
   accent2: "#3b82c4",
-  accent3: "#e9a23b",
-  warn: "#e9a23b",
-  danger: "#d9534f",
-  palette: ["#16a34a", "#3b82c4", "#e9a23b", "#7bc043", "#8b5cf6", "#d9534f", "#2f9e57"],
+  accent3: "#d99a2b",
+  warn: "#d99a2b",
+  danger: "#d0534e",
+  palette: ["#1f9d55", "#3b82c4", "#d99a2b", "#6cc04a", "#8b5cf6", "#d0534e", "#157a41"],
 };
 
 function baseLayout(extra = {}) {
@@ -231,7 +253,7 @@ function baseLayout(extra = {}) {
     font: { family: "Inter, sans-serif", color: THEME.text, size: 12 },
     margin: { l: 52, r: 20, t: 42, b: 44 },
     colorway: THEME.palette,
-    hoverlabel: { bgcolor: "#ffffff", bordercolor: "#e3e9e3", font: { color: "#14261a" } },
+    hoverlabel: { bgcolor: "#ffffff", bordercolor: "#e3ece3", font: { color: "#15311f" } },
     xaxis: { gridcolor: THEME.grid, zerolinecolor: THEME.grid, linecolor: THEME.grid },
     yaxis: { gridcolor: THEME.grid, zerolinecolor: THEME.grid, linecolor: THEME.grid },
     legend: { orientation: "h", y: 1.12, x: 0, bgcolor: "rgba(0,0,0,0)" },

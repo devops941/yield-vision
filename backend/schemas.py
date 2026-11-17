@@ -100,6 +100,36 @@ class ReportRequest(BaseModel):
     )
 
 
+class RecordEntry(BaseModel):
+    """One manually entered crop/weather/soil row."""
+
+    state: str | None = None
+    district: str | None = None
+    crop: str | None = None
+    season: str | None = None
+    year: int | None = None
+    yield_t_ha: float | None = None
+    area_ha: float | None = None
+    production_t: float | None = None
+    rainfall_mm: float | None = None
+    temp_mean_c: float | None = None
+    temp_max_c: float | None = None
+    temp_min_c: float | None = None
+    humidity_pct: float | None = None
+    soil_n_kgha: float | None = None
+    soil_p_kgha: float | None = None
+    soil_k_kgha: float | None = None
+    soil_ph: float | None = None
+    soil_oc_pct: float | None = None
+    fertilizer_kgha: float | None = None
+    irrigated_frac: float | None = None
+    pesticide_kgha: float | None = None
+
+
+class RecordEntryIn(BaseModel):
+    rows: list[RecordEntry] = Field(default_factory=list)
+
+
 class HealthResponse(BaseModel):
     status: str = "ok"
     version: str

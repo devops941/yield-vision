@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YieldVision · Explainability</title>
-<link rel="stylesheet" href="/static/css/style.css" />
+<title>YieldVision · What drives yield</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
@@ -17,54 +17,54 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="btn-row" style="justify-content:space-between">
         <div>
           <h3 class="card-title">Model</h3>
-          <p class="card-sub">Pick a model to explain</p>
+          <p class="card-sub">Pick the model you want to look inside</p>
         </div>
         <select id="model-select" style="width:auto;min-width:220px"></select>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3 class="card-title">Plain-language summary</h3>
-      <p class="card-sub">Relationship in the data, not proof of cause</p>
+      <h3 class="card-title">In plain words</h3>
+      <p class="card-sub">What the model learned — a relationship in the data, not proof of cause</p>
       <div id="summary"></div>
     </div>
 
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
-        <h3 class="card-title">Permutation importance</h3>
-        <p class="card-sub">How much each input matters</p>
+        <h3 class="card-title">Which inputs matter most</h3>
+        <p class="card-sub">How much each input changes the prediction</p>
         <div class="chart" id="chart-importance"></div>
       </div>
       <div class="card">
-        <h3 class="card-title">Impurity importance</h3>
-        <p class="card-sub">Tree-based importance</p>
+        <h3 class="card-title">Which inputs the trees split on</h3>
+        <p class="card-sub">A second view, from inside the tree model</p>
         <div class="chart" id="chart-impurity"></div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3 class="card-title">Partial dependence</h3>
-      <p class="card-sub">How yield changes as one input changes</p>
-      <label class="field" style="max-width:320px"><span>Feature</span><select id="pdp-feature"></select></label>
+      <h3 class="card-title">What happens when one input changes</h3>
+      <p class="card-sub">Predicted yield as a single input moves, all else held equal</p>
+      <label class="field" style="max-width:340px"><span>Input to change</span><select id="pdp-feature"></select></label>
       <div class="chart" id="chart-pdp"></div>
     </div>
   `;
 
   const FEATURES = ["rainfall_mm", "temp_mean_c", "soil_n_kgha", "soil_ph", "irrigated_frac", "fertilizer_kgha", "soil_p_kgha", "humidity_pct"];
-  html("pdp-feature", FEATURES.map(f => `<option value="${f}">${f}</option>`).join(""));
+  html("pdp-feature", FEATURES.map(f => `<option value="${f}">${fieldLabel(f)}</option>`).join(""));
 
   let models = [];
   try { models = (await API.get("/api/models")).models; } catch (_) {}
   if (!models.length) { view.innerHTML = `<div class="card">${emptyState("No models trained yet.")}</div>`; return; }
 
-  html("model-select", models.map(m => `<option value="${m.model_id}" ${m.is_active ? "selected" : ""}>${m.name} (v${m.version})${m.is_active ? " · active" : ""}</option>`).join(""));
+  html("model-select", models.map(m => `<option value="${m.model_id}" ${m.is_active ? "selected" : ""}>${modelLabel(m.name)} (v${m.version})${m.is_active ? " · active" : ""}</option>`).join(""));
 
   async function load(modelId) {
     const imp = (await API.get(`/api/models/${modelId}/importance`)).importance;
     const perm = imp.filter(r => r.permutation_importance != null).sort((a, b) => b.permutation_importance - a.permutation_importance);
     if (perm.length) {
       drawChart("chart-importance", [
-        { x: perm.map(r => r.permutation_importance), y: perm.map(r => r.feature), type: "bar", orientation: "h",
+        { x: perm.map(r => r.permutation_importance), y: perm.map(r => fieldLabel(r.feature)), type: "bar", orientation: "h",
           marker: { color: THEME.accent }, error_x: { array: perm.map(r => r.permutation_std || 0), color: THEME.text } },
       ], { margin: { l: 130, r: 20, t: 20, b: 44 }, xaxis: { title: "Δ RMSE" }, showlegend: false,
            yaxis: { autorange: "reversed" } });
@@ -73,7 +73,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const impu = imp.filter(r => r.impurity_importance != null).sort((a, b) => b.impurity_importance - a.impurity_importance).slice(0, 12);
     if (impu.length) {
       drawChart("chart-impurity", [
-        { x: impu.map(r => r.impurity_importance), y: impu.map(r => r.feature), type: "bar", orientation: "h",
+        { x: impu.map(r => r.impurity_importance), y: impu.map(r => fieldLabel(r.feature)), type: "bar", orientation: "h",
           marker: { color: THEME.accent3 } },
       ], { margin: { l: 130, r: 20, t: 20, b: 44 }, xaxis: { title: "Importance" }, showlegend: false,
            yaxis: { autorange: "reversed" } });
@@ -91,9 +91,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const c = await API.get(`/api/models/${modelId}/pdp?feature=${feature}`);
       drawChart("chart-pdp", [
-        { x: c.grid, y: c.values, type: "scatter", mode: "lines", line: { width: 3, color: THEME.accent }, name: feature,
+        { x: c.grid, y: c.values, type: "scatter", mode: "lines", line: { width: 3, color: THEME.accent }, name: fieldLabel(feature),
           fill: "tozeroy", fillcolor: "rgba(22,163,74,0.12)" },
-      ], { margin: { l: 56, r: 20, t: 20, b: 44 }, xaxis: { title: feature }, yaxis: { title: "Predicted t/ha" }, showlegend: false });
+      ], { margin: { l: 56, r: 20, t: 20, b: 44 }, xaxis: { title: fieldLabel(feature) }, yaxis: { title: "Predicted t/ha" }, showlegend: false });
     } catch (e) { html("chart-pdp", emptyState(e.message)); }
   }
 

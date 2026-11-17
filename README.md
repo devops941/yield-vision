@@ -90,8 +90,9 @@ set `YIELDVISION_NO_MONGO=1` so they stay offline.
 
 ### Or load data from the browser
 
-1. Open the **Dashboard** and press **Load sample dataset**, or go to
-   **Upload & Validate** and drop your own CSV.
+1. Open the **Dashboard** and press **Load sample dataset**; or use
+   **Data entry** to type in one record; or go to **Upload & Validate** and drop
+   your own CSV.
 2. Review the validation issues, fix/ignore/exclude as needed, then **Commit**.
 3. Walk through **Trends → Features → Train models**.
 4. Activate a model, then use **Predict**, **Accuracy**, **Explainability** and
@@ -150,6 +151,7 @@ yield-vision/
 │                           # predict, media, export, report
 ├── frontend/               # HTML + JS + Plotly.js (no Streamlit)
 │   ├── index.html          # dashboard
+│   ├── entry.html          # type in a record by hand
 │   ├── upload.html         # upload, validate, review, commit
 │   ├── media.html          # image and video prediction
 │   ├── explorer.html       # trend explorer
