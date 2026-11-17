@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YieldVision · Reports & Export</title>
-<link rel="stylesheet" href="/static/css/style.css" />
-<script src="/static/js/app.js"></script>
+<title>YieldVision · Reports</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
@@ -22,38 +22,38 @@ document.addEventListener("DOMContentLoaded", async () => {
   view.innerHTML = `
     <div class="grid cols-2">
       <div class="card">
-        <h3 class="card-title">Generate PDF report</h3>
-        <p class="card-sub">A report with charts, metrics and notes</p>
+        <h3 class="card-title">Create a PDF report</h3>
+        <p class="card-sub">A shareable report with charts, scores and notes</p>
         <label class="field"><span>Report title</span><input id="report-title" value="YieldVision Analysis Report" /></label>
         <label class="field"><span>Model</span><select id="report-model"><option value="">Active model</option></select></label>
         <div>${SECTIONS.map(([k, l]) => `<label class="check"><input type="checkbox" class="section" value="${k}" checked /> ${l}</label>`).join("")}</div>
         <div class="btn-row" style="margin-top:12px">
-          <button class="btn btn-primary" id="generate">Generate report</button>
+          <button class="btn btn-primary" id="generate">Create report</button>
         </div>
         <div id="report-result" style="margin-top:12px"></div>
       </div>
 
       <div class="card">
-        <h3 class="card-title">Export data</h3>
-        <p class="card-sub">Download cleaned data and full results</p>
+        <h3 class="card-title">Download your data</h3>
+        <p class="card-sub">Cleaned data and the full results workbook</p>
         <div class="grid" style="gap:10px">
-          <a class="btn" href="/api/export/data.csv">Download cleaned data (CSV)</a>
-          <a class="btn" href="/api/export/results.xlsx">Download results workbook (Excel)</a>
-          <a class="btn btn-ghost" href="/api/template" download>Download CSV template</a>
+          <a class="btn" href="/api/export/data.csv">Cleaned data (CSV)</a>
+          <a class="btn" href="/api/export/results.xlsx">Results workbook (Excel)</a>
+          <a class="btn btn-ghost" href="/api/template" download>Blank CSV template</a>
         </div>
         <div class="card" style="margin-top:16px;background:transparent">
           <h3 class="card-title">Prediction history</h3>
           <div class="btn-row"><button class="btn btn-ghost btn-sm" id="export-history">Load history</button></div>
           <div class="table-wrap" style="margin-top:10px;max-height:300px;overflow:auto"><table class="data" id="history">
-            <thead><tr><th>When</th><th>Model</th><th>Yield</th></tr></thead><tbody></tbody>
+            <thead><tr><th>When</th><th>Crop</th><th>Yield</th></tr></thead><tbody></tbody>
           </table></div>
         </div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3 class="card-title">Generated reports</h3>
-      <p class="card-sub">Download previous reports</p>
+      <h3 class="card-title">Earlier reports</h3>
+      <p class="card-sub">Reports you have already created</p>
       <div class="table-wrap"><table class="data" id="reports">
         <thead><tr><th>ID</th><th>Created</th><th>File</th><th></th></tr></thead><tbody></tbody>
       </table></div>
@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const sel = document.getElementById("report-model");
     models.forEach(m => {
       const o = document.createElement("option");
-      o.value = m.model_id; o.textContent = `${m.name} (v${m.version})${m.is_active ? " · active" : ""}`;
+      o.value = m.model_id; o.textContent = `${modelLabel(m.name)} (v${m.version})${m.is_active ? " · active" : ""}`;
       sel.appendChild(o);
     });
   } catch (_) {}
@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const h = (await API.get("/api/predict/history?limit=50")).predictions;
       document.querySelector("#history tbody").innerHTML = h.map(p => `
-        <tr><td>${fmt.date(p.created_at)}</td><td>#${p.model_id ?? "–"}</td><td class="num">${fmt.num(p.y_pred)}</td></tr>`).join("")
+        <tr><td>${fmt.date(p.created_at)}</td><td>${fmt.title(p.inputs?.crop ?? "–")}</td><td class="num">${fmt.num(p.y_pred)}</td></tr>`).join("")
         || `<tr><td colspan="3">${emptyState("No predictions yet.")}</td></tr>`;
     } catch (e) { toast(e.message, "err"); }
   });

@@ -3,30 +3,30 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YieldVision · Feature Engineering</title>
-<link rel="stylesheet" href="/static/css/style.css" />
+<title>YieldVision · Features</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const view = renderShell();
   const OPTIONS = [
-    ["include_gdd", "Growing degree days & heat stress", true],
-    ["include_anomalies", "Climate anomalies vs long-term mean", true],
+    ["include_gdd", "Growing degree days and heat stress", true],
+    ["include_anomalies", "Weather anomalies vs the long-term average", true],
     ["include_lags", "District history lag (past years only)", true],
     ["include_interactions", "Rainfall × irrigation, temperature × crop", true],
     ["include_soil", "Soil N, P, K, pH, organic carbon", true],
     ["include_categorical", "Crop, season, state, district", true],
-    ["add_missing_indicators", "Missing-value indicator flags", true],
+    ["add_missing_indicators", "Flags that mark missing values", true],
   ];
 
   view.innerHTML = `
     <div class="grid cols-2-1">
       <div class="card">
-        <h3 class="card-title">Feature options</h3>
-        <p class="card-sub">Choose the features to build. They are fitted inside each fold.</p>
+        <h3 class="card-title">Choose your features</h3>
+        <p class="card-sub">Turn on the extra signals you want the model to use.</p>
         <div id="options"></div>
         <div class="btn-row" style="margin-top:12px">
           <button class="btn btn-primary" id="build">Build feature set</button>
@@ -34,26 +34,26 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
       <div class="card">
         <h3 class="card-title">Result</h3>
-        <p class="card-sub">Size of the feature table</p>
+        <p class="card-sub">How big the feature table is</p>
         <div id="result">${emptyState("Build a feature set to see its size.")}</div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3 class="card-title">Engineered columns</h3>
-      <p class="card-sub">Columns created</p>
+      <h3 class="card-title">New columns created</h3>
+      <p class="card-sub">Each one is a signal the model can learn from</p>
       <div class="pill-row" id="columns"></div>
     </div>
 
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
         <h3 class="card-title">Preview rows</h3>
-        <p class="card-sub">First rows</p>
+        <p class="card-sub">The first few rows of the table</p>
         <div class="table-wrap" style="max-height:420px;overflow:auto"><table class="data" id="preview-table"><thead></thead><tbody></tbody></table></div>
       </div>
       <div class="card">
-        <h3 class="card-title">Numeric distributions</h3>
-        <p class="card-sub">Pick a feature to inspect</p>
+        <h3 class="card-title">Value spread</h3>
+        <p class="card-sub">Pick a feature to see how its values are spread</p>
         <label class="field"><span>Feature</span><select id="stat-feature"></select></label>
         <div class="chart sm" id="chart-stat"></div>
       </div>

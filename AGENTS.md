@@ -22,7 +22,9 @@ the frontend is plain HTML + vanilla JS + Plotly.js (no Streamlit, no build step
 
 ## Conventions
 - Frontend pages share nav from `app.js`; use `fieldLabel(name)` for friendly
-  column names instead of `fmt.title(name)`.
+  column names and `modelLabel(name)` for model names instead of `fmt.title(name)`.
+- Asset links carry a `?v=YYYY` query (`/static/js/app.js?v=2026`) so browsers
+  pick up JS/CSS changes instead of serving a stale cached copy.
 - UI is a light theme: white canvas, leaf-green accents, full-width (no max-width cap).
   CSS variables live in `:root` of `frontend/css/style.css`.
 - MongoDB mirroring is best-effort: every `mongo.*` call must no-op when the

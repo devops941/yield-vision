@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YieldVision · Trend Explorer</title>
-<link rel="stylesheet" href="/static/css/style.css" />
+<title>YieldVision · Trends</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
@@ -31,35 +31,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     <div class="grid cols-2-1" style="margin-top:16px">
       <div class="card">
         <h3 class="card-title">Yield over time</h3>
-        <p class="card-sub" id="trend-caption">Mean yield per year with fitted trend</p>
+        <p class="card-sub" id="trend-caption">Average yield per year, with the trend line</p>
         <div class="chart" id="chart-trend"></div>
       </div>
       <div class="card">
-        <h3 class="card-title">Trend test</h3>
-        <p class="card-sub">Mann-Kendall & Sen's slope</p>
+        <h3 class="card-title">Is there a trend?</h3>
+        <p class="card-sub">Statistical test of the direction over time</p>
         <div id="trend-stats"></div>
       </div>
     </div>
 
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
-        <h3 class="card-title">Climate vs yield</h3>
-        <p class="card-sub">Correlation with confidence</p>
+        <h3 class="card-title">Weather vs yield</h3>
+        <p class="card-sub">How one weather measure relates to yield</p>
         <div class="btn-row" style="margin-bottom:10px">
           <div class="pill-row" id="var-pills"></div>
         </div>
         <div class="chart" id="chart-climate"></div>
       </div>
       <div class="card">
-        <h3 class="card-title">Regions</h3>
-        <p class="card-sub">Highest and lowest mean yield</p>
+        <h3 class="card-title">Top districts</h3>
+        <p class="card-sub">Districts with the highest average yield</p>
         <div class="chart" id="chart-regions"></div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
       <div class="btn-row" style="justify-content:space-between">
-        <div><h3 class="card-title">Underlying records</h3><p class="card-sub">Filtered dataset preview</p></div>
+        <div><h3 class="card-title">The records behind the charts</h3><p class="card-sub">Filtered preview of your data</p></div>
         <button class="btn btn-ghost btn-sm" id="export-csv">Export CSV</button>
       </div>
       <div class="table-wrap" style="margin-top:12px;max-height:420px;overflow:auto"><table class="data" id="records-table">
@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       loadClimate();
     }));
   } catch (e) {
-    view.innerHTML = `<div class="card">${emptyState("No dataset loaded. Go to Upload & Validate first.")}</div>`;
+    view.innerHTML = `<div class="card">${emptyState("No data yet. Add a record or upload a file first.")}</div>`;
     return;
   }
 
@@ -119,8 +119,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const max = Math.max(...values), min = Math.min(...values);
     html("stats", `
       <div class="stat"><div class="label">Mean yield</div><div class="value">${fmt.num(mean)}<small>t/ha</small></div><div class="delta">${s.length} years</div></div>
-      <div class="stat"><div class="label">Peak</div><div class="value">${fmt.num(max)}<small>t/ha</small></div><div class="delta">best year in range</div></div>
-      <div class="stat"><div class="label">Low</div><div class="value">${fmt.num(min)}<small>t/ha</small></div><div class="delta">worst year in range</div></div>
+      <div class="stat"><div class="label">Peak</div><div class="value">${fmt.num(max)}<small>t/ha</small></div><div class="delta">best year in the range</div></div>
+      <div class="stat"><div class="label">Low</div><div class="value">${fmt.num(min)}<small>t/ha</small></div><div class="delta">weakest year in the range</div></div>
       <div class="stat"><div class="label">Sen's slope</div><div class="value">${fmt.num(data.trend.sen_slope_t_ha_per_year, 4)}</div><div class="delta">t/ha per year</div></div>
     `);
 
@@ -146,7 +146,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     drawChart("chart-climate", [
       { x: data.points.map(p => p[climateVar]), y: data.points.map(p => p.yield_t_ha), type: "scatter", mode: "markers",
         marker: { size: 6, color: THEME.accent2, opacity: 0.55 }, name: "Records" },
-    ], { margin: { l: 52, r: 20, t: 20, b: 44 }, xaxis: { title: climateVar }, yaxis: { title: "t/ha" }, showlegend: false,
+    ], { margin: { l: 52, r: 20, t: 20, b: 44 }, xaxis: { title: fieldLabel(climateVar) }, yaxis: { title: "t/ha" }, showlegend: false,
          annotations: [{ text: `Spearman r = ${fmt.num(c.spearman_r, 3)} · p = ${fmt.num(c.p_value, 4)}${c.significant ? " (significant)" : ""}`,
            x: 0.5, y: 1.08, xref: "paper", yref: "paper", showarrow: false, font: { color: THEME.text } }] });
   }

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Data entry</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
+<script src="/static/js/app.js?v=2026"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const view = renderShell();
+  view.innerHTML = `
+    <div class="page-head">
+      <h2>Type in your crop data</h2>
+      <p>Add one record for a district, crop and year. Saved rows feed straight into
+      Trends, Features, model training and prediction — no spreadsheet needed.</p>
+    </div>
+
+    <div class="grid cols-2-1">
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h3 class="card-title">New record</h3>
+            <p class="card-sub">Fields marked with <span style="color:var(--red)">*</span> are required.</p>
+          </div>
+          <span class="chip" id="guide-chip" style="display:none"></span>
+        </div>
+        <div id="form">${emptyState("Loading the form…")}</div>
+        <div class="btn-row" style="margin-top:16px">
+          <button class="btn btn-primary" id="save">${ICONS.check} Save record</button>
+          <button class="btn btn-ghost" id="add-another">${ICONS.plus} Save and add another</button>
+          <button class="btn btn-ghost" id="clear">Clear form</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 class="card-title">What happened</h3>
+          <p class="card-sub">We check each record before saving it.</p>
+          <div id="result">${emptyState("Fill in the form and save to see the result.")}</div>
+        </div>
+        <div class="card">
+          <h3 class="card-title">Crop reference</h3>
+          <p class="card-sub">Typical yield and soil pH for the crop you pick.</p>
+          <div id="guide">${emptyState("Pick a crop to see its reference values.")}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="card-head">
+        <div>
+          <h3 class="card-title">Recently added records</h3>
+          <p class="card-sub" id="recent-sub">Your latest entries, newest first.</p>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-sm btn-ghost" id="refresh">Refresh</button>
+          <a class="btn btn-sm" href="explorer.html">See these in Trends →</a>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top:12px;max-height:460px;overflow:auto">
+        <table class="data" id="recent-table">
+          <thead><tr>
+            <th>District</th><th>Crop</th><th>Season</th><th>Year</th>
+            <th>Yield (t/ha)</th><th>Rainfall (mm)</th><th>Temp (°C)</th><th>Soil pH</th><th></th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+  let meta = null;
+  let guide = {};
+
+  try {
+    meta = await API.get("/api/records/meta");
+    guide = (await API.get("/api/records/crop-guide")).crops;
+  } catch (e) {
+    html("form", emptyState("Could not load the form: " + e.message));
+    return;
+  }
+
+  const inputs = {};
+
+  function fieldHtml(f) {
+    const req = f.required ? ' <span style="color:var(--red)">*</span>' : "";
+    const hint = f.required ? "" : ' <span class="hint">(optional)</span>';
+    const name = f.name;
+    let control;
+    if (f.type === "select") {
+      const opts = (meta.options[f.options_key] || [])
+        .map(o => `<option value="${o}">${fmt.title(o)}</option>`).join("");
+      control = `<select data-name="${name}"><option value="">Choose…</option>${opts}</select>`;
+    } else if (f.type === "number") {
+      const attrs = [
+        f.step != null ? `step="${f.step}"` : "",
+        f.min != null ? `min="${f.min}"` : "",
+        f.max != null ? `max="${f.max}"` : "",
+        f.placeholder ? `placeholder="${f.placeholder}"` : "",
+      ].join(" ");
+      const box = `<input type="number" data-name="${name}" ${attrs} />`;
+      control = f.unit ? `<div class="input-unit">${box}<span class="unit">${f.unit}</span></div>` : box;
+    } else {
+      const list = name === "district" && meta.options.districts.length
+        ? `list="district-list"` : "";
+      control = `<input type="text" data-name="${name}" ${list} placeholder="${f.placeholder || ""}" />`;
+    }
+    return `<label class="field"><span>${f.label}${req}${hint}</span>${control}</label>`;
+  }
+
+  const sections = meta.groups.map(g => `
+    <div class="form-section">
+      <div class="form-section-head"><h4>${g.title}</h4><span>${g.hint}</span></div>
+      <div class="form-grid">${g.fields.map(fieldHtml).join("")}</div>
+    </div>`).join("");
+
+  const districtOptions = meta.options.districts.length
+    ? `<datalist id="district-list">${meta.options.districts.map(d => `<option value="${d}"></option>`).join("")}</datalist>`
+    : "";
+
+  html("form", sections + districtOptions);
+
+  view.querySelectorAll("[data-name]").forEach(el => { inputs[el.dataset.name] = el; });
+
+  const CROP_DEFAULTS = {
+    rice: { rainfall_mm: 850, temp_mean_c: 26, temp_max_c: 34, temp_min_c: 18, humidity_pct: 72, soil_ph: 6.5, soil_n_kgha: 250, soil_p_kgha: 25, soil_k_kgha: 200, soil_oc_pct: 0.6, fertilizer_kgha: 120, irrigated_frac: 0.7, pesticide_kgha: 2.5 },
+    wheat: { rainfall_mm: 500, temp_mean_c: 18, temp_max_c: 26, temp_min_c: 9, humidity_pct: 60, soil_ph: 6.8, soil_n_kgha: 220, soil_p_kgha: 22, soil_k_kgha: 180, soil_oc_pct: 0.55, fertilizer_kgha: 130, irrigated_frac: 0.8, pesticide_kgha: 2.0 },
+    maize: { rainfall_mm: 750, temp_mean_c: 25, temp_max_c: 33, temp_min_c: 17, humidity_pct: 68, soil_ph: 6.2, soil_n_kgha: 240, soil_p_kgha: 24, soil_k_kgha: 190, soil_oc_pct: 0.58, fertilizer_kgha: 125, irrigated_frac: 0.5, pesticide_kgha: 2.2 },
+    cotton: { rainfall_mm: 700, temp_mean_c: 29, temp_max_c: 37, temp_min_c: 21, humidity_pct: 55, soil_ph: 7.0, soil_n_kgha: 200, soil_p_kgha: 20, soil_k_kgha: 210, soil_oc_pct: 0.5, fertilizer_kgha: 110, irrigated_frac: 0.6, pesticide_kgha: 3.2 },
+    groundnut: { rainfall_mm: 620, temp_mean_c: 27, temp_max_c: 34, temp_min_c: 20, humidity_pct: 62, soil_ph: 6.3, soil_n_kgha: 180, soil_p_kgha: 26, soil_k_kgha: 170, soil_oc_pct: 0.52, fertilizer_kgha: 90, irrigated_frac: 0.45, pesticide_kgha: 1.8 },
+  };
+
+  inputs.year.value = new Date().getFullYear();
+  inputs.season.value = "Kharif";
+
+  inputs.crop.addEventListener("change", () => {
+    const crop = inputs.crop.value;
+    renderGuide(crop);
+    const defaults = CROP_DEFAULTS[crop];
+    if (!defaults) return;
+    Object.entries(defaults).forEach(([key, value]) => {
+      if (inputs[key] && !inputs[key].value) inputs[key].value = value;
+    });
+  });
+
+  function renderGuide(crop) {
+    const g = guide[crop];
+    const chip = document.getElementById("guide-chip");
+    if (!g) { chip.style.display = "none"; html("guide", emptyState("Pick a crop to see its reference values.")); return; }
+    chip.style.display = "";
+    chip.textContent = g.display_name;
+    html("guide", `
+      <div class="kv"><span>Typical yield range</span><span>${fmt.num(g.yield_min, 1)} – ${fmt.num(g.yield_max, 1)} t/ha</span></div>
+      <div class="kv"><span>Best soil pH</span><span>${fmt.num(g.optimal_ph, 1)}</span></div>
+      ${g.rainfall_optimal_mm ? `<div class="kv"><span>Preferred rainfall</span><span>~${fmt.int(g.rainfall_optimal_mm)} mm</span></div>` : ""}
+    `);
+  }
+
+  function collect() {
+    const row = {};
+    Object.entries(inputs).forEach(([name, el]) => {
+      const v = el.value;
+      row[name] = v === "" ? null : (el.type === "number" ? Number(v) : v);
+    });
+    return row;
+  }
+
+  function clearForm(keepLocation) {
+    const keep = keepLocation ? { state: inputs.state.value, district: inputs.district.value, crop: inputs.crop.value, season: inputs.season.value, year: inputs.year.value } : {};
+    Object.entries(inputs).forEach(([name, el]) => {
+      if (keepLocation && name in keep) { el.value = keep[name]; return; }
+      el.value = name === "season" && !keepLocation ? "Kharif" : (name === "year" ? new Date().getFullYear() : "");
+    });
+  }
+
+  function renderResult(r) {
+    if (r.saved) {
+      html("result", `
+        <div class="stat accent" style="border:none;padding:0 0 12px;background:transparent">
+          <div class="label">Saved</div>
+          <div class="value" style="font-size:30px">${ICONS.check} ${fmt.int(r.inserted)}</div>
+          <div class="delta">record added to your dataset</div>
+        </div>
+        <div class="kv"><span>Total records now</span><span>${fmt.int(r.counts.rows)}</span></div>
+        <div class="kv"><span>Crops</span><span>${fmt.int(r.counts.crops)}</span></div>
+        <div class="kv"><span>Regions</span><span>${fmt.int(r.counts.regions)}</span></div>
+        ${warningsBlock(r.validation)}
+        <div class="btn-row" style="margin-top:12px">
+          <a class="btn btn-sm" href="explorer.html">View in Trends</a>
+          <a class="btn btn-sm btn-ghost" href="predict.html">Predict yield</a>
+        </div>
+      `);
+      return;
+    }
+    const errs = r.validation.issues.filter(i => i.severity === "error");
+    html("result", `
+      <div class="badge err" style="display:block;margin-bottom:10px">Could not save — ${errs.length} problem${errs.length === 1 ? "" : "s"} to fix</div>
+      ${errs.map(i => `<div style="padding:8px 0;border-bottom:1px solid var(--line)">
+        <div style="font-weight:600;color:var(--ink)">${i.column ? fieldLabel(i.column) : "Record"}</div>
+        <div class="muted">${i.message}</div>
+        ${i.suggestion ? `<div class="muted">Tip: ${i.suggestion}</div>` : ""}
+      </div>`).join("")}
+    `);
+  }
+
+  function warningsBlock(validation) {
+    const warns = validation.issues.filter(i => i.severity === "warning");
+    if (!warns.length) return '<div class="badge ok" style="margin-top:10px">Everything looks right</div>';
+    return `<div style="margin-top:12px">
+      <div class="badge warn" style="margin-bottom:8px">${warns.length} thing${warns.length === 1 ? "" : "s"} worth a look</div>
+      ${warns.slice(0, 6).map(i => `<div class="muted" style="margin-bottom:4px">${i.column ? fieldLabel(i.column) + ": " : ""}${i.message}</div>`).join("")}
+    </div>`;
+  }
+
+  async function save(thenAnother) {
+    const btn = document.getElementById(thenAnother ? "add-another" : "save");
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving…';
+    try {
+      const r = await API.post("/api/records/entry", { rows: [collect()] });
+      renderResult(r);
+      if (r.saved) {
+        toast("Record saved", "ok", 2400);
+        if (thenAnother) clearForm(true); else clearForm(false);
+        loadRecent();
+        refreshSideStatus();
+      } else {
+        toast("Please fix the highlighted problems", "err");
+      }
+    } catch (e) {
+      toast(e.message, "err");
+      html("result", emptyState(e.message));
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = original;
+    }
+  }
+
+  document.getElementById("save").addEventListener("click", () => save(false));
+  document.getElementById("add-another").addEventListener("click", () => save(true));
+  document.getElementById("clear").addEventListener("click", () => clearForm(false));
+  document.getElementById("refresh").addEventListener("click", loadRecent);
+
+  async function loadRecent() {
+    const tbody = document.querySelector("#recent-table tbody");
+    try {
+      const r = await API.get("/api/records/recent?limit=40");
+      document.getElementById("recent-sub").textContent =
+        `${fmt.int(r.count)} recent record${r.count === 1 ? "" : "s"} · ${fmt.int((await API.get("/api/explorer/summary").catch(() => ({ rows: r.count }))).rows)} rows in total`;
+      if (!r.records.length) {
+        tbody.innerHTML = `<tr><td colspan="9">${emptyState("No records yet. Save your first one above.")}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = r.records.map(x => `
+        <tr>
+          <td>${fmt.text(x.district)}</td>
+          <td>${fmt.title(x.crop)}</td>
+          <td>${fmt.text(x.season)}</td>
+          <td class="num">${fmt.text(x.year)}</td>
+          <td class="num">${fmt.num(x.yield_t_ha)}</td>
+          <td class="num">${fmt.num(x.rainfall_mm, 0)}</td>
+          <td class="num">${fmt.num(x.temp_mean_c, 1)}</td>
+          <td class="num">${fmt.num(x.soil_ph, 1)}</td>
+          <td><button class="btn btn-sm btn-danger" data-del="${x.record_id}">${ICONS.trash} Remove</button></td>
+        </tr>`).join("");
+      tbody.querySelectorAll("[data-del]").forEach(b => b.addEventListener("click", async () => {
+        try {
+          await API.req(`/api/records/${b.dataset.del}`, { method: "DELETE" });
+          toast("Record removed", "ok", 2200);
+          loadRecent();
+          refreshSideStatus();
+        } catch (e) { toast(e.message, "err"); }
+      }));
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="9">${emptyState(e.message)}</td></tr>`;
+    }
+  }
+
+  renderGuide("");
+  loadRecent();
+});
+</script>
+</body>
+</html>

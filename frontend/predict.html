@@ -4,9 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>YieldVision · Predict</title>
-<link rel="stylesheet" href="/static/css/style.css" />
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
@@ -25,8 +25,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   view.innerHTML = `
     <div class="grid cols-1-2">
       <div class="card">
-        <h3 class="card-title">Conditions</h3>
-        <p class="card-sub">Enter conditions to predict yield</p>
+        <h3 class="card-title">Growing conditions</h3>
+        <p class="card-sub">Fill in the conditions and we predict the yield</p>
         <div id="form"></div>
         <div class="btn-row" style="margin-top:12px">
           <button class="btn btn-primary" id="predict">Predict yield</button>
@@ -36,14 +36,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div>
         <div class="card">
           <h3 class="card-title">Prediction</h3>
-          <p class="card-sub">Predicted value with an 80% range</p>
-          <div id="result">${emptyState("Enter conditions and press Predict.")}</div>
+          <p class="card-sub">Best estimate with an 80% likely range</p>
+          <div id="result">${emptyState("Fill in the conditions and press Predict.")}</div>
         </div>
         <div class="card" style="margin-top:16px">
-          <h3 class="card-title">What-if sensitivity</h3>
-          <p class="card-sub">Change one input, keep the rest the same</p>
-          <label class="field"><span>Feature to vary</span><select id="whatif-feature">
-            ${WHATIF.map(f => `<option value="${f}">${f}</option>`).join("")}
+          <h3 class="card-title">What if you changed one thing?</h3>
+          <p class="card-sub">Change one input and hold the rest steady</p>
+          <label class="field"><span>Input to change</span><select id="whatif-feature">
+            ${WHATIF.map(f => `<option value="${f}">${fieldLabel(f)}</option>`).join("")}
           </select></label>
           <div class="chart sm" id="chart-whatif"></div>
         </div>
@@ -52,8 +52,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
-        <h3 class="card-title">Upload a spreadsheet</h3>
-        <p class="card-sub">Upload an Excel or CSV of conditions to see every row predicted</p>
+        <h3 class="card-title">Predict from a spreadsheet</h3>
+        <p class="card-sub">Upload an Excel or CSV and get a prediction for every row</p>
         <div class="dropzone" id="batch-drop">
           ${ICONS.upload}
           <div><strong>Drop an Excel or CSV here</strong> or click to browse</div>
@@ -65,7 +65,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       </div>
       <div class="card">
         <h3 class="card-title">Recent predictions</h3>
-        <p class="card-sub">Your recent predictions</p>
+        <p class="card-sub">The latest predictions you have run</p>
         <div class="table-wrap" style="max-height:320px;overflow:auto"><table class="data" id="history">
           <thead><tr><th>When</th><th>Crop</th><th>Yield</th><th>Range</th></tr></thead><tbody></tbody>
         </table></div>
@@ -105,7 +105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="label">Predicted yield</div>
           <div class="value" style="font-size:38px">${fmt.num(r.y_pred)}<small>t/ha</small></div>
         </div>
-        ${r.pred_low != null ? `<div class="kv"><span>80% interval</span><span>${fmt.num(r.pred_low)} – ${fmt.num(r.pred_high)} t/ha</span></div>` : ""}
+        ${r.pred_low != null ? `<div class="kv"><span>80% likely range</span><span>${fmt.num(r.pred_low)} – ${fmt.num(r.pred_high)} t/ha</span></div>` : ""}
         ${width != null ? `<div class="kv"><span>Interval width</span><span>± ${fmt.num(width / 2)} t/ha</span></div>` : ""}
         <div class="kv"><span>Prediction id</span><span>#${r.prediction_id}</span></div>
         ${r.warnings && r.warnings.length ? `<div style="margin-top:12px">${r.warnings.map(w => `<div class="badge warn" style="display:block;margin-bottom:6px;white-space:normal">${w}</div>`).join("")}</div>` : '<div class="badge ok" style="margin-top:12px">Inputs within training range</div>'}
@@ -128,9 +128,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         ...(r.pred_high[0] != null ? [
           { x: r.values, y: r.pred_high, type: "scatter", mode: "lines", line: { width: 0 }, showlegend: false, hoverinfo: "skip" },
           { x: r.values, y: r.pred_low, type: "scatter", mode: "lines", line: { width: 0 }, fill: "tonexty",
-            fillcolor: "rgba(22,163,74,0.14)", name: "80% interval", hoverinfo: "skip" },
+            fillcolor: "rgba(22,163,74,0.14)", name: "80% likely range", hoverinfo: "skip" },
         ] : []),
-      ], { margin: { l: 52, r: 20, t: 20, b: 44 }, xaxis: { title: feature }, yaxis: { title: "Predicted t/ha" } });
+      ], { margin: { l: 52, r: 20, t: 20, b: 44 }, xaxis: { title: fieldLabel(feature) }, yaxis: { title: "Predicted t/ha" } });
     } catch (e) { html("chart-whatif", emptyState(e.message)); }
   }
 

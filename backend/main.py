@@ -22,6 +22,7 @@ from backend.routers import (
     media,
     models,
     predict,
+    records,
     report,
     uploads,
 )
@@ -58,6 +59,7 @@ app.add_middleware(
 )
 
 for router in (
+    records.router,
     uploads.router,
     explorer.router,
     features.router,

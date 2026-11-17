@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YieldVision · Accuracy Dashboard</title>
-<link rel="stylesheet" href="/static/css/style.css" />
+<title>YieldVision · Accuracy</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
@@ -16,13 +16,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     <div class="card">
       <div class="btn-row" style="justify-content:space-between">
         <div>
-          <h3 class="card-title">Validation scheme</h3>
-          <p class="card-sub">Temporal is the main check. Random K-fold is shown for reference only.</p>
+          <h3 class="card-title">How the models are tested</h3>
+          <p class="card-sub">The time-based test is the fair one. The random split is shown only for reference.</p>
         </div>
         <div class="pill-row" id="scheme-pills">
-          <span class="pill active" data-scheme="temporal">Temporal</span>
-          <span class="pill" data-scheme="group">GroupKFold</span>
-          <span class="pill" data-scheme="random">Random</span>
+          <span class="pill active" data-scheme="temporal">By time</span>
+          <span class="pill" data-scheme="group">By district</span>
+          <span class="pill" data-scheme="random">Random split</span>
         </div>
       </div>
     </div>
@@ -31,9 +31,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="card" style="margin-top:16px">
       <h3 class="card-title">Model comparison</h3>
-      <p class="card-sub">Lower RMSE and higher R² are better.</p>
+      <p class="card-sub">Lower error and higher R² are better. R² is how much of the variation the model explains.</p>
       <div class="table-wrap"><table class="data" id="compare">
-        <thead><tr><th>Model</th><th>N</th><th>MAE</th><th>RMSE</th><th>R²</th><th>MAPE %</th><th>Bias</th><th>Skill</th></tr></thead>
+        <thead><tr><th>Model</th><th>Rows</th><th>MAE</th><th>RMSE</th><th>R²</th><th>MAPE %</th><th>Bias</th><th>Better than baseline</th></tr></thead>
         <tbody></tbody>
       </table></div>
     </div>
@@ -41,19 +41,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
         <h3 class="card-title">Actual vs predicted</h3>
-        <p class="card-sub">Active model on unseen data</p>
+        <p class="card-sub">Active model on data it has not seen</p>
         <div class="chart" id="chart-actual"></div>
       </div>
       <div class="card">
-        <h3 class="card-title">Residuals</h3>
-        <p class="card-sub">Predicted minus actual</p>
+        <h3 class="card-title">Errors</h3>
+        <p class="card-sub">Predicted minus actual for each record</p>
         <div class="chart" id="chart-residual"></div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3 class="card-title">Error by scope</h3>
-      <p class="card-sub">Error by crop and year</p>
+      <h3 class="card-title">Error by group</h3>
+      <p class="card-sub">Average error per crop and per year</p>
       <div class="grid cols-2">
         <div><div class="chart sm" id="chart-crop"></div></div>
         <div><div class="chart sm" id="chart-year"></div></div>
@@ -61,8 +61,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     </div>
 
     <div class="card" style="margin-top:16px">
-      <h3 class="card-title">Worst predictions</h3>
-      <p class="card-sub">Biggest errors</p>
+      <h3 class="card-title">Largest misses</h3>
+      <p class="card-sub">The records the model got most wrong</p>
       <div class="table-wrap" style="max-height:360px;overflow:auto"><table class="data" id="worst">
         <thead><tr><th>Actual</th><th>Predicted</th><th>Abs error</th><th>District</th><th>Crop</th><th>Year</th></tr></thead>
         <tbody></tbody>
@@ -70,13 +70,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     </div>
   `;
 
+  const SCHEME_LABEL = { temporal: "by time", group: "by district", random: "on a random split" };
   let scheme = "temporal";
   let activeId = null;
 
   async function load() {
     const models = (await API.get("/api/models")).models;
     if (!models.length) {
-      view.innerHTML = `<div class="card">${emptyState("No models trained yet. Go to Train Models first.")}</div>`;
+      view.innerHTML = `<div class="card">${emptyState("No models trained yet. Go to Train models first.")}</div>`;
       return;
     }
     const active = models.find(m => m.is_active) || models[0];
@@ -84,16 +85,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const cmp = (await API.get(`/api/models/compare?scheme=${scheme}`)).comparison;
     html("headline", `
-      <div class="stat"><div class="label">Active model</div><div class="value" style="font-size:18px">${active.name}</div><div class="delta">${scheme} scheme</div></div>
-      <div class="stat"><div class="label">Best RMSE</div><div class="value">${fmt.num(cmp[0]?.rmse, 3)}<small>t/ha</small></div><div class="delta">${cmp[0]?.name || "–"}</div></div>
-      <div class="stat"><div class="label">Best R²</div><div class="value">${fmt.num(cmp[0]?.r2, 3)}</div><div class="delta">variance explained</div></div>
+      <div class="stat"><div class="label">Active model</div><div class="value" style="font-size:18px">${modelLabel(active.name)}</div><div class="delta">tested ${SCHEME_LABEL[scheme]}</div></div>
+      <div class="stat"><div class="label">Best RMSE</div><div class="value">${fmt.num(cmp[0]?.rmse, 3)}<small>t/ha</small></div><div class="delta">${cmp[0] ? modelLabel(cmp[0].name) : "–"}</div></div>
+      <div class="stat"><div class="label">Best R²</div><div class="value">${fmt.num(cmp[0]?.r2, 3)}</div><div class="delta">variation explained</div></div>
       <div class="stat"><div class="label">Skill vs baseline</div><div class="value">${cmp[0]?.skill_vs_baseline != null ? fmt.pct(cmp[0].skill_vs_baseline) : "–"}</div><div class="delta">best model</div></div>
     `);
 
     const tbody = document.querySelector("#compare tbody");
     tbody.innerHTML = cmp.map(r => `
       <tr>
-        <td>${r.name}${r.model_id === activeId ? ' <span class="badge ok">active</span>' : ""}</td>
+        <td>${modelLabel(r.name)}${r.model_id === activeId ? ' <span class="badge ok">active</span>' : ""}</td>
         <td class="num">${fmt.int(r.n)}</td>
         <td class="num">${fmt.num(r.mae, 3)}</td>
         <td class="num">${fmt.num(r.rmse, 3)}</td>
@@ -111,7 +112,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const data = await API.get(`/api/models/${modelId}/predictions?scheme=${scheme}`);
     const pts = data.points;
     if (!pts.length) {
-      ["chart-actual", "chart-residual"].forEach(id => html(id, emptyState("No held-out predictions stored.")));
+      ["chart-actual", "chart-residual"].forEach(id => html(id, emptyState("No test predictions stored yet.")));
       html("worst", emptyState("No predictions available."));
       return;
     }
@@ -141,7 +142,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const byYear = data.metrics.filter(m => m.scope_type === "year");
     if (byCrop.length) {
       drawChart("chart-crop", [
-        { x: byCrop.map(m => m.scope_value), y: byCrop.map(m => m.rmse), type: "bar",
+        { x: byCrop.map(m => fmt.title(m.scope_value)), y: byCrop.map(m => m.rmse), type: "bar",
           marker: { color: THEME.accent2 }, name: "RMSE" },
       ], { margin: { l: 48, r: 16, t: 30, b: 40 }, yaxis: { title: "RMSE t/ha" }, showlegend: false, title: { text: "RMSE by crop", font: { size: 12, color: THEME.text } } });
     } else html("chart-crop", emptyState("Not enough rows per crop."));

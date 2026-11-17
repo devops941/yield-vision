@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>YieldVision · Image & video</title>
-<link rel="stylesheet" href="/static/css/style.css" />
+<title>YieldVision · Photo & video</title>
+<link rel="stylesheet" href="/static/css/style.css?v=2026" />
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v=2026"></script>
 </head>
 <body>
 <script>
@@ -97,7 +97,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <p class="card-sub">${up.kind === "video" ? `${up.frames} frames analysed` : "Single image analysed"}</p>
           <div class="result-big">${fmt.num(pr.y_pred)}<small> t/ha</small></div>
           ${pr.pred_low != null ? `<div class="muted" style="margin-top:6px">Range ${fmt.num(pr.pred_low)} – ${fmt.num(pr.pred_high)} t/ha</div>` : ""}
-          <div style="margin-top:12px"><span class="chip">Model: ${fmt.text(pr.model_name)}</span></div>
+          <div style="margin-top:12px"><span class="chip">Model: ${modelLabel(pr.model_name)}</span></div>
           ${(pr.warnings || []).length ? `<div style="margin-top:10px">${pr.warnings.map(w => `<div class="badge warn" style="margin:2px 4px 2px 0">${w}</div>`).join("")}</div>` : ""}
         </div>
         <div class="card">
