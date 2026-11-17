@@ -15,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="grid cols-2-1">
       <div class="card">
         <h3 class="card-title">Upload data</h3>
-        <p class="card-sub">CSV, Excel or JSON. Columns are matched to canonical names automatically.</p>
+        <p class="card-sub">CSV, Excel or JSON. Column names are matched automatically.</p>
         <div class="dropzone" id="drop">
           ${ICONS.upload}
           <div><strong>Drop a file here</strong> or click to browse</div>
@@ -30,7 +30,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       <div class="card">
         <h3 class="card-title">Validation summary</h3>
-        <p class="card-sub">Issues are checked per the rule book</p>
+        <p class="card-sub">Each row is checked against the rules</p>
         <div id="summary">${emptyState("Upload a file to validate it.")}</div>
       </div>
     </div>
@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <div class="btn-row" style="justify-content:space-between">
         <div>
           <h3 class="card-title">Issues</h3>
-          <p class="card-sub">Fix, ignore or exclude each issue. Every action is written to the audit trail.</p>
+          <p class="card-sub">Fix, ignore or skip each issue. Every action is saved.</p>
         </div>
         <div class="btn-row">
           <select id="sev-filter" style="width:auto">

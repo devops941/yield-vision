@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from backend.deps import db_session
 from backend.schemas import ReportRequest
 from src.data import db as dbmod
+from src.data import mongo
 from src.report.generate import generate_report
 
 router = APIRouter(prefix="/api/report", tags=["report"])
@@ -34,6 +35,16 @@ def create_report(payload: ReportRequest, session: Session = Depends(db_session)
     row = dbmod.ReportRow(file_path=str(path))
     session.add(row)
     session.flush()
+
+    mongo.save_report(
+        {
+            "report_id": row.report_id,
+            "file_path": str(path),
+            "title": payload.title,
+            "model_id": payload.model_id,
+            "sections": payload.include_sections,
+        }
+    )
 
     return {
         "report_id": row.report_id,

@@ -23,7 +23,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     <div class="grid cols-2">
       <div class="card">
         <h3 class="card-title">Generate PDF report</h3>
-        <p class="card-sub">A formatted analysis report with figures, metrics and interpretation</p>
+        <p class="card-sub">A report with charts, metrics and notes</p>
         <label class="field"><span>Report title</span><input id="report-title" value="YieldVision Analysis Report" /></label>
         <label class="field"><span>Model</span><select id="report-model"><option value="">Active model</option></select></label>
         <div>${SECTIONS.map(([k, l]) => `<label class="check"><input type="checkbox" class="section" value="${k}" checked /> ${l}</label>`).join("")}</div>

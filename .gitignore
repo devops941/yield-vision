@@ -8,10 +8,19 @@ venv/
 # Environment / secrets
 .env
 .env.*
+!.env.example
 
 # SQLite runtime sidecar files
 *.db-shm
 *.db-wal
+
+# Runtime data (databases, uploads, media, models, outputs)
+data/*.db
+data/uploads/
+data/media/
+data/processed/
+models/
+outputs/
 
 # OS / editor
 .DS_Store

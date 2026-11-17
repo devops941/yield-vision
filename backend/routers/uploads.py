@@ -16,6 +16,7 @@ from backend.deps import db_session
 from backend.schemas import CommitRequest, IssuePatch
 from src.config import DATA_DIR, ensure_dirs
 from src.data import db as dbmod
+from src.data import mongo
 from src.data.ingest import canonicalise, load_crop_file
 from src.data.preprocess import drop_high_missingness, preprocess
 from src.data.synthetic import generate_dataset, write_template
@@ -231,6 +232,16 @@ def commit_upload(
     upload.status = "committed"
     session.flush()
 
+    mongo.save_upload(
+        {
+            "upload_id": upload_id,
+            "filename": upload.filename,
+            "status": upload.status,
+            "n_rows": int(len(clean)),
+        }
+    )
+    mongo.sync_records(dbmod.load_records_df(session))
+
     return {
         "upload_id": upload_id,
         "status": upload.status,
@@ -253,6 +264,7 @@ def load_sample(session: Session = Depends(db_session)) -> dict:
     session.flush()
 
     inserted = dbmod.commit_records(session, upload.upload_id, clean)
+    mongo.sync_records(dbmod.load_records_df(session))
     return {
         "upload_id": upload.upload_id,
         "status": "committed",
@@ -263,4 +275,5 @@ def load_sample(session: Session = Depends(db_session)) -> dict:
             "n_warnings": report.n_warnings,
         },
         "counts": dbmod.dataset_counts(session),
+        "mongo": mongo.status(),
     }

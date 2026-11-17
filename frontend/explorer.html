@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
         <h3 class="card-title">Climate vs yield</h3>
-        <p class="card-sub">Spearman correlation with significance</p>
+        <p class="card-sub">Correlation with confidence</p>
         <div class="btn-row" style="margin-bottom:10px">
           <div class="pill-row" id="var-pills"></div>
         </div>
@@ -81,7 +81,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("f-start").value = f.years[0];
     document.getElementById("f-end").value = f.years[f.years.length - 1];
     html("var-pills", f.climate_variables.map((v, i) =>
-      `<span class="pill ${i === 0 ? "active" : ""}" data-var="${v}">${fmt.title(v)}</span>`).join(""));
+      `<span class="pill ${i === 0 ? "active" : ""}" data-var="${v}">${fieldLabel(v)}</span>`).join(""));
     document.querySelectorAll("#var-pills .pill").forEach(p => p.addEventListener("click", () => {
       document.querySelectorAll("#var-pills .pill").forEach(x => x.classList.remove("active"));
       p.classList.add("active");

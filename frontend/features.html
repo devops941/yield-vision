@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <div class="grid cols-2-1">
       <div class="card">
         <h3 class="card-title">Feature options</h3>
-        <p class="card-sub">Choose what the pipeline should engineer. All transforms are fitted inside CV folds.</p>
+        <p class="card-sub">Choose the features to build. They are fitted inside each fold.</p>
         <div id="options"></div>
         <div class="btn-row" style="margin-top:12px">
           <button class="btn btn-primary" id="build">Build feature set</button>
@@ -34,21 +34,21 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
       <div class="card">
         <h3 class="card-title">Result</h3>
-        <p class="card-sub">Shape of the engineered matrix</p>
-        <div id="result">${emptyState("Build a feature set to see its shape.")}</div>
+        <p class="card-sub">Size of the feature table</p>
+        <div id="result">${emptyState("Build a feature set to see its size.")}</div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
       <h3 class="card-title">Engineered columns</h3>
-      <p class="card-sub">Columns produced by the pipeline</p>
+      <p class="card-sub">Columns created</p>
       <div class="pill-row" id="columns"></div>
     </div>
 
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
         <h3 class="card-title">Preview rows</h3>
-        <p class="card-sub">First engineered records</p>
+        <p class="card-sub">First rows</p>
         <div class="table-wrap" style="max-height:420px;overflow:auto"><table class="data" id="preview-table"><thead></thead><tbody></tbody></table></div>
       </div>
       <div class="card">
@@ -127,7 +127,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     drawChart("chart-stat", [
       { x: xs, y: ys, type: "scatter", mode: "lines", fill: "tozeroy", name: feature,
-        line: { color: THEME.accent }, fillcolor: "rgba(184,255,61,0.16)" },
+        line: { color: THEME.accent }, fillcolor: "rgba(22,163,74,0.16)" },
     ], { margin: { l: 44, r: 16, t: 20, b: 40 }, yaxis: { showticklabels: false, title: "" },
          xaxis: { title: feature }, showlegend: false,
          annotations: [{ text: `mean ${fmt.num(mean)} · std ${fmt.num(std)} · min ${fmt.num(lo)} · max ${fmt.num(hi)}`,

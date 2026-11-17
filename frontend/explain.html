@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       <div class="btn-row" style="justify-content:space-between">
         <div>
           <h3 class="card-title">Model</h3>
-          <p class="card-sub">Pick a trained model to interpret</p>
+          <p class="card-sub">Pick a model to explain</p>
         </div>
         <select id="model-select" style="width:auto;min-width:220px"></select>
       </div>
@@ -25,26 +25,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     <div class="card" style="margin-top:16px">
       <h3 class="card-title">Plain-language summary</h3>
-      <p class="card-sub">Association in the data, not proof of causation</p>
+      <p class="card-sub">Relationship in the data, not proof of cause</p>
       <div id="summary"></div>
     </div>
 
     <div class="grid cols-2" style="margin-top:16px">
       <div class="card">
         <h3 class="card-title">Permutation importance</h3>
-        <p class="card-sub">Increase in RMSE when a raw input is shuffled</p>
+        <p class="card-sub">How much each input matters</p>
         <div class="chart" id="chart-importance"></div>
       </div>
       <div class="card">
         <h3 class="card-title">Impurity importance</h3>
-        <p class="card-sub">Tree-based split contribution (when available)</p>
+        <p class="card-sub">Tree-based importance</p>
         <div class="chart" id="chart-impurity"></div>
       </div>
     </div>
 
     <div class="card" style="margin-top:16px">
       <h3 class="card-title">Partial dependence</h3>
-      <p class="card-sub">How predicted yield responds as one feature varies</p>
+      <p class="card-sub">How yield changes as one input changes</p>
       <label class="field" style="max-width:320px"><span>Feature</span><select id="pdp-feature"></select></label>
       <div class="chart" id="chart-pdp"></div>
     </div>
@@ -92,7 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       const c = await API.get(`/api/models/${modelId}/pdp?feature=${feature}`);
       drawChart("chart-pdp", [
         { x: c.grid, y: c.values, type: "scatter", mode: "lines", line: { width: 3, color: THEME.accent }, name: feature,
-          fill: "tozeroy", fillcolor: "rgba(184,255,61,0.12)" },
+          fill: "tozeroy", fillcolor: "rgba(22,163,74,0.12)" },
       ], { margin: { l: 56, r: 20, t: 20, b: 44 }, xaxis: { title: feature }, yaxis: { title: "Predicted t/ha" }, showlegend: false });
     } catch (e) { html("chart-pdp", emptyState(e.message)); }
   }

@@ -19,11 +19,13 @@ from backend.routers import (
     explorer,
     export,
     features,
+    media,
     models,
     predict,
     report,
     uploads,
 )
+from src.data import mongo
 from src.config import DB_PATH, PROJECT_ROOT
 
 VERSION = "1.0.0"
@@ -61,6 +63,7 @@ for router in (
     features.router,
     models.router,
     predict.router,
+    media.router,
     export.router,
     report.router,
 ):
@@ -70,7 +73,12 @@ for router in (
 @app.get("/health", tags=["system"])
 def health() -> dict:
     """Health check endpoint."""
-    return {"status": "ok", "version": VERSION, "database": str(DB_PATH)}
+    return {
+        "status": "ok",
+        "version": VERSION,
+        "database": str(DB_PATH),
+        "mongo": mongo.status(),
+    }
 
 
 # --- Static frontend -------------------------------------------------------
