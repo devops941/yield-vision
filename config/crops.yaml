@@ -1,0 +1,68 @@
+# Crop configuration: crop-specific agronomic parameters used for
+# feature engineering (GDD), validation ranges and soil pH optima.
+
+defaults:
+  base_temp_c: 10.0
+  optimal_ph: 6.5
+  yield_min: 0.1
+  yield_max: 15.0
+  heat_stress_temp_c: 35.0
+  critical_months: [7, 8]
+
+seasons:
+  Kharif:
+    months: [6, 7, 8, 9, 10]
+    label: "Kharif (Jun-Oct)"
+  Rabi:
+    months: [11, 12, 1, 2, 3]
+    label: "Rabi (Nov-Mar)"
+  Summer:
+    months: [4, 5]
+    label: "Summer (Apr-May)"
+
+crops:
+  rice:
+    display_name: "Rice"
+    base_temp_c: 10.0
+    optimal_ph: 6.5
+    yield_min: 0.2
+    yield_max: 12.0
+    heat_stress_temp_c: 35.0
+    critical_months: [7, 8]
+    rainfall_optimal_mm: 1200.0
+  wheat:
+    display_name: "Wheat"
+    base_temp_c: 5.0
+    optimal_ph: 6.8
+    yield_min: 0.3
+    yield_max: 9.0
+    heat_stress_temp_c: 30.0
+    critical_months: [2, 3]
+    rainfall_optimal_mm: 500.0
+  maize:
+    display_name: "Maize"
+    base_temp_c: 10.0
+    optimal_ph: 6.2
+    yield_min: 0.2
+    yield_max: 11.0
+    heat_stress_temp_c: 34.0
+    critical_months: [7, 8]
+    rainfall_optimal_mm: 800.0
+  cotton:
+    display_name: "Cotton"
+    base_temp_c: 15.0
+    optimal_ph: 7.0
+    yield_min: 0.1
+    yield_max: 4.0
+    heat_stress_temp_c: 38.0
+    critical_months: [8, 9]
+    rainfall_optimal_mm: 700.0
+  groundnut:
+    display_name: "Groundnut"
+    base_temp_c: 12.0
+    optimal_ph: 6.3
+    yield_min: 0.2
+    yield_max: 6.0
+    heat_stress_temp_c: 36.0
+    critical_months: [7, 8]
+    rainfall_optimal_mm: 600.0

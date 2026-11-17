@@ -1,0 +1,63 @@
+# Column alias table. Maps a wide variety of real-world / spreadsheet header
+# names onto the canonical YieldVision schema. Matching is case-insensitive and
+# ignores surrounding whitespace and common separators.
+
+canonical_columns:
+  - state
+  - district
+  - crop
+  - season
+  - year
+  - area_ha
+  - production_t
+  - yield_t_ha
+  - rainfall_mm
+  - temp_mean_c
+  - temp_max_c
+  - temp_min_c
+  - humidity_pct
+  - soil_n_kgha
+  - soil_p_kgha
+  - soil_k_kgha
+  - soil_ph
+  - soil_oc_pct
+  - fertilizer_kgha
+  - irrigated_frac
+  - pesticide_kgha
+
+aliases:
+  state: [state_name, statename, st, region_state, province]
+  district: [district_name, dist, distname, districtname, county, region, region_name, block, taluk]
+  crop: [crop_name, cropname, commodity, crop_type, crop_short_name, cropname]
+  season: [season_name, seasonname, crop_season, season_type, ssn]
+  year: [year_of_record, yr, crop_year, harvest_year, year_ad, calendar_year]
+  area_ha: [area, area_hectare, area_hectares, area_ha_ha, hectares, area_hac, area_in_hectares, areahectare]
+  production_t: [production, prod, production_tonnes, production_tons, production_tonne, prod_t, output_t, total_production]
+  yield_t_ha: [yield, yield_tha, yield_tonnes_per_ha, yield_t_per_ha, yield_tonnes_ha, yield_per_ha, productivity, yield_value, yield_tons_ha]
+  rainfall_mm: [rainfall, rain_mm, rain, precip_mm, precipitation, total_rainfall_mm, rainfall_millimeter, rainfall_mm_total, rf_mm]
+  temp_mean_c: [temp_mean, temperature, temp, mean_temp, avg_temp, temp_avg, mean_temperature_c, tmean_c, tmean, temp_mean_degc]
+  temp_max_c: [temp_max, max_temp, maximum_temperature, tmax, tmax_c, temp_maximum, max_temperature_c]
+  temp_min_c: [temp_min, min_temp, minimum_temperature, tmin, tmin_c, temp_minimum, min_temperature_c]
+  humidity_pct: [humidity, relative_humidity, rh, humidity_percent, humidity_pc, relative_humidity_pct]
+  soil_n_kgha: [soil_n, nitrogen, n_kgha, soil_nitrogen, soil_nitrogen_kgha, available_nitrogen, n_kg_ha, soiln]
+  soil_p_kgha: [soil_p, phosphorus, p_kgha, soil_phosphorus, available_phosphorus, p_kg_ha, soilp]
+  soil_k_kgha: [soil_k, potassium, k_kgha, soil_potassium, available_potassium, k_kg_ha, soilk]
+  soil_ph: [ph, soil_ph_value, ph_value, soilph, ph_level, soil_reaction]
+  soil_oc_pct: [organic_carbon, oc, soil_organic_carbon, organic_carbon_pct, oc_pct, soil_oc, soc]
+  fertilizer_kgha: [fertilizer, fertilizer_use, fertiliser_kgha, fertilizer_kg_ha, npk_kgha, nutrient_kgha, fert_kgha]
+  irrigated_frac: [irrigated_fraction, irrigation_frac, irrigated_area_frac, irrigation, irrigated_pct, irrigation_ratio, irrigation_fraction]
+  pesticide_kgha: [pesticide, pesticide_use, pesticides_kgha, pesticide_kg_ha, agrochemical_kgha, pesticides]
+
+# Season label normalisation: map alternative spellings to canonical seasons.
+season_aliases:
+  kharif: Kharif
+  kharif season: Kharif
+  monsoon: Kharif
+  rainy: Kharif
+  rabi: Rabi
+  rabi season: Rabi
+  winter: Rabi
+  summer: Summer
+  zaid: Summer
+  hot: Summer
+  spring: Summer
