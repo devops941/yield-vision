@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import select
@@ -187,17 +188,39 @@ def commit_upload(
         raise HTTPException(status_code=400, detail="Stored file is missing; please re-upload")
 
     df = canonicalise(load_crop_file(stored, upload.filename))
-    clean = preprocess(
-        df,
-        duplicate_policy=payload.duplicate_policy,
-    )
-    if payload.drop_high_missingness:
-        clean = drop_high_missingness(clean)
 
-    # Apply user decisions recorded against the issues.
+    # Apply user decisions recorded against the issues before cleaning.
     issues = session.scalars(
         select(dbmod.ValidationIssue).where(dbmod.ValidationIssue.upload_id == upload_id)
     ).all()
+
+    open_errors = [i for i in issues if i.severity == "error" and i.status == "open"]
+    if open_errors:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{len(open_errors)} error(s) still need a decision. "
+                "Fix, ignore or exclude each one before committing."
+            ),
+        )
+
+    for issue in issues:
+        if issue.status != "fixed" or issue.column is None or issue.row_index is None:
+            continue
+        if issue.column not in df.columns or issue.row_index not in df.index:
+            continue
+        new_value: object = issue.value
+        if pd.api.types.is_numeric_dtype(df[issue.column]):
+            try:
+                new_value = float(issue.value)
+            except (TypeError, ValueError):
+                new_value = np.nan
+        df.at[issue.row_index, issue.column] = new_value
+
+    clean = preprocess(df, duplicate_policy=payload.duplicate_policy)
+    if payload.drop_high_missingness:
+        clean = drop_high_missingness(clean)
+
     excluded_rows = {
         i.row_index for i in issues if i.status == "excluded" and i.row_index is not None
     }

@@ -20,7 +20,7 @@ python-multipart==0.0.34
 # --- Backend ---
 fastapi==0.163.1
 uvicorn[standard]==0.54.0
-pydantic==2.12.4
+pydantic==2.14.3
 
 # --- Database ---
 SQLAlchemy==2.1.9
@@ -30,7 +30,7 @@ joblib==1.6.0
 
 # --- Reports ---
 Jinja2==3.1.6
-matplotlib==3.10.8
+matplotlib==3.11.2
 weasyprint==70.0
 
 # --- Config ---

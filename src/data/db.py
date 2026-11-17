@@ -155,6 +155,9 @@ class EvalPrediction(Base):
     model_id: Mapped[int] = mapped_column(ForeignKey("model_registry.model_id"), index=True)
     record_id: Mapped[int | None] = mapped_column(Integer)
     scheme: Mapped[str] = mapped_column(String, index=True)
+    district: Mapped[str | None] = mapped_column(String)
+    crop: Mapped[str | None] = mapped_column(String)
+    year: Mapped[int | None] = mapped_column(Integer)
     y_true: Mapped[float | None] = mapped_column(Float)
     y_pred: Mapped[float | None] = mapped_column(Float)
     pred_low: Mapped[float | None] = mapped_column(Float)
@@ -220,15 +223,35 @@ _ENGINE = None
 _SessionLocal = None
 
 
+def _make_engine(db_path: str | Path):
+    """Build a SQLite engine with WAL so readers never block on long writers."""
+    from sqlalchemy import event
+
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        future=True,
+        connect_args={"timeout": 30, "check_same_thread": False},
+    )
+
+    @event.listens_for(engine, "connect")
+    def _set_sqlite_pragmas(dbapi_conn, _record):  # pragma: no cover - driver hook
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
+    Base.metadata.create_all(engine)
+    return engine
+
+
 def get_engine(db_path: str | Path | None = None):
     global _ENGINE, _SessionLocal
     if db_path is not None:
-        engine = create_engine(f"sqlite:///{db_path}", future=True)
-        Base.metadata.create_all(engine)
-        return engine
+        return _make_engine(db_path)
     if _ENGINE is None:
-        _ENGINE = create_engine(f"sqlite:///{DB_PATH}", future=True)
-        Base.metadata.create_all(_ENGINE)
+        _ENGINE = _make_engine(DB_PATH)
     return _ENGINE
 
 

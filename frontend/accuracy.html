@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Accuracy Dashboard</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const view = renderShell();
+  view.innerHTML = `
+    <div class="card">
+      <div class="btn-row" style="justify-content:space-between">
+        <div>
+          <h3 class="card-title">Validation scheme</h3>
+          <p class="card-sub">Temporal is the headline scheme. Random K-fold is optimistic and shown for reference.</p>
+        </div>
+        <div class="pill-row" id="scheme-pills">
+          <span class="pill active" data-scheme="temporal">Temporal</span>
+          <span class="pill" data-scheme="group">GroupKFold</span>
+          <span class="pill" data-scheme="random">Random</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid cols-4" id="headline" style="margin-top:16px"></div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 class="card-title">Model comparison</h3>
+      <p class="card-sub">Lower RMSE and higher R² are better</p>
+      <div class="table-wrap"><table class="data" id="compare">
+        <thead><tr><th>Model</th><th>N</th><th>MAE</th><th>RMSE</th><th>R²</th><th>MAPE %</th><th>Bias</th><th>Skill</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3 class="card-title">Actual vs predicted</h3>
+        <p class="card-sub">Active model on held-out data</p>
+        <div class="chart" id="chart-actual"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Residuals</h3>
+        <p class="card-sub">Predicted minus actual</p>
+        <div class="chart" id="chart-residual"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 class="card-title">Error by scope</h3>
+      <p class="card-sub">Where the model struggles most</p>
+      <div class="grid cols-2">
+        <div><div class="chart sm" id="chart-crop"></div></div>
+        <div><div class="chart sm" id="chart-year"></div></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 class="card-title">Worst predictions</h3>
+      <p class="card-sub">Largest absolute errors with likely reasons</p>
+      <div class="table-wrap" style="max-height:360px;overflow:auto"><table class="data" id="worst">
+        <thead><tr><th>Actual</th><th>Predicted</th><th>Abs error</th><th>District</th><th>Crop</th><th>Year</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  `;
+
+  let scheme = "temporal";
+  let activeId = null;
+
+  async function load() {
+    const models = (await API.get("/api/models")).models;
+    if (!models.length) {
+      view.innerHTML = `<div class="card">${emptyState("No models trained yet. Go to Train Models first.")}</div>`;
+      return;
+    }
+    const active = models.find(m => m.is_active) || models[0];
+    activeId = active.model_id;
+
+    const cmp = (await API.get(`/api/models/compare?scheme=${scheme}`)).comparison;
+    html("headline", `
+      <div class="stat"><div class="label">Active model</div><div class="value" style="font-size:18px">${active.name}</div><div class="delta">${scheme} scheme</div></div>
+      <div class="stat"><div class="label">Best RMSE</div><div class="value">${fmt.num(cmp[0]?.rmse, 3)}<small>t/ha</small></div><div class="delta">${cmp[0]?.name || "–"}</div></div>
+      <div class="stat"><div class="label">Best R²</div><div class="value">${fmt.num(cmp[0]?.r2, 3)}</div><div class="delta">variance explained</div></div>
+      <div class="stat"><div class="label">Skill vs baseline</div><div class="value">${cmp[0]?.skill_vs_baseline != null ? fmt.pct(cmp[0].skill_vs_baseline) : "–"}</div><div class="delta">best model</div></div>
+    `);
+
+    const tbody = document.querySelector("#compare tbody");
+    tbody.innerHTML = cmp.map(r => `
+      <tr>
+        <td>${r.name}${r.model_id === activeId ? ' <span class="badge ok">active</span>' : ""}</td>
+        <td class="num">${fmt.int(r.n)}</td>
+        <td class="num">${fmt.num(r.mae, 3)}</td>
+        <td class="num">${fmt.num(r.rmse, 3)}</td>
+        <td class="num">${fmt.num(r.r2, 3)}</td>
+        <td class="num">${fmt.num(r.mape, 1)}</td>
+        <td class="num">${fmt.num(r.bias, 3)}</td>
+        <td class="num">${r.skill_vs_baseline != null ? fmt.pct(r.skill_vs_baseline) : "–"}</td>
+      </tr>`).join("");
+
+    await loadPredictions(activeId);
+    await loadScopes(activeId);
+  }
+
+  async function loadPredictions(modelId) {
+    const data = await API.get(`/api/models/${modelId}/predictions?scheme=${scheme}`);
+    const pts = data.points;
+    if (!pts.length) {
+      ["chart-actual", "chart-residual"].forEach(id => html(id, emptyState("No held-out predictions stored.")));
+      html("worst", emptyState("No predictions available."));
+      return;
+    }
+    const lo = Math.min(...pts.map(p => p.y_true)), hi = Math.max(...pts.map(p => p.y_true));
+    drawChart("chart-actual", [
+      { x: pts.map(p => p.y_true), y: pts.map(p => p.y_pred), type: "scatter", mode: "markers",
+        marker: { size: 6, color: THEME.accent2, opacity: 0.55 }, name: "Predictions" },
+      { x: [lo, hi], y: [lo, hi], type: "scatter", mode: "lines", name: "Perfect", line: { dash: "dash", color: THEME.warn } },
+    ], { xaxis: { title: "Actual t/ha" }, yaxis: { title: "Predicted t/ha" } });
+
+    drawChart("chart-residual", [
+      { x: pts.map(p => p.y_pred), y: pts.map(p => p.residual), type: "scatter", mode: "markers",
+        marker: { size: 6, color: THEME.accent, opacity: 0.5 }, name: "Residual" },
+      { x: [Math.min(...pts.map(p => p.y_pred)), Math.max(...pts.map(p => p.y_pred))], y: [0, 0],
+        type: "scatter", mode: "lines", line: { color: THEME.danger, dash: "dot" }, name: "Zero" },
+    ], { xaxis: { title: "Predicted t/ha" }, yaxis: { title: "Residual" } });
+
+    const worst = [...pts].sort((a, b) => Math.abs(b.residual) - Math.abs(a.residual)).slice(0, 12);
+    document.querySelector("#worst tbody").innerHTML = worst.map(p => `
+      <tr><td class="num">${fmt.num(p.y_true)}</td><td class="num">${fmt.num(p.y_pred)}</td>
+      <td class="num">${fmt.num(Math.abs(p.residual))}</td><td>${p.district ?? "–"}</td><td>${p.crop ?? "–"}</td><td class="num">${p.year ?? "–"}</td></tr>`).join("");
+  }
+
+  async function loadScopes(modelId) {
+    const data = await API.get(`/api/models/${modelId}/metrics?scheme=${scheme}`);
+    const byCrop = data.metrics.filter(m => m.scope_type === "crop");
+    const byYear = data.metrics.filter(m => m.scope_type === "year");
+    if (byCrop.length) {
+      drawChart("chart-crop", [
+        { x: byCrop.map(m => m.scope_value), y: byCrop.map(m => m.rmse), type: "bar",
+          marker: { color: THEME.accent2 }, name: "RMSE" },
+      ], { margin: { l: 48, r: 16, t: 30, b: 40 }, yaxis: { title: "RMSE t/ha" }, showlegend: false, title: { text: "RMSE by crop", font: { size: 12, color: THEME.text } } });
+    } else html("chart-crop", emptyState("Not enough rows per crop."));
+    if (byYear.length) {
+      drawChart("chart-year", [
+        { x: byYear.map(m => m.scope_value), y: byYear.map(m => m.rmse), type: "scatter", mode: "lines+markers",
+          line: { color: THEME.accent3 }, name: "RMSE" },
+      ], { margin: { l: 48, r: 16, t: 30, b: 40 }, yaxis: { title: "RMSE t/ha" }, showlegend: false, title: { text: "RMSE by year", font: { size: 12, color: THEME.text } } });
+    } else html("chart-year", emptyState("Not enough rows per year."));
+  }
+
+  document.querySelectorAll("#scheme-pills .pill").forEach(p => p.addEventListener("click", () => {
+    document.querySelectorAll("#scheme-pills .pill").forEach(x => x.classList.remove("active"));
+    p.classList.add("active");
+    scheme = p.dataset.scheme;
+    load();
+  }));
+
+  load();
+});
+</script>
+</body>
+</html>

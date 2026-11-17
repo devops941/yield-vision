@@ -46,7 +46,7 @@ def build_features(
 
     return {
         "feature_set_id": row.feature_set_id,
-        "n_rows": int(features.shape[1] and len(features)),
+        "n_rows": int(len(features)),
         "n_features": int(features.shape[1]),
         "columns": list(features.columns),
         "stats": stats,

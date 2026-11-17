@@ -146,7 +146,14 @@ def model_predictions(
         "model_id": model_id,
         "scheme": scheme,
         "points": [
-            {"y_true": r.y_true, "y_pred": r.y_pred, "residual": (r.y_pred - r.y_true) if (r.y_pred is not None and r.y_true is not None) else None}
+            {
+                "y_true": r.y_true,
+                "y_pred": r.y_pred,
+                "residual": (r.y_pred - r.y_true) if (r.y_pred is not None and r.y_true is not None) else None,
+                "district": r.district,
+                "crop": r.crop,
+                "year": r.year,
+            }
             for r in rows
         ],
     }

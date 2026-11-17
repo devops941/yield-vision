@@ -165,12 +165,19 @@ def train_and_register(
 def _store_predictions(session, model_id: int, scheme: str, preds: dict[str, Any]) -> None:
     y_true = np.asarray(preds["y_true"], dtype=float)
     y_pred = np.asarray(preds["y_pred"], dtype=float)
+    test_df = preds.get("test_df")
+    districts = test_df["district"].tolist() if test_df is not None and "district" in test_df else []
+    crops = test_df["crop"].tolist() if test_df is not None and "crop" in test_df else []
+    years = test_df["year"].tolist() if test_df is not None and "year" in test_df else []
     n = min(len(y_true), 500)
     for i in range(n):
         session.add(
             EvalPrediction(
                 model_id=model_id,
                 scheme=scheme,
+                district=str(districts[i]) if i < len(districts) else None,
+                crop=str(crops[i]) if i < len(crops) else None,
+                year=int(years[i]) if i < len(years) and years[i] is not None else None,
                 y_true=float(y_true[i]),
                 y_pred=float(y_pred[i]),
             )

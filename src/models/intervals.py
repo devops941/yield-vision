@@ -25,6 +25,13 @@ def _input_frame(df: pd.DataFrame) -> pd.DataFrame:
     return df[cols].copy()
 
 
+def _fmt_num(value: float) -> str:
+    """Readable numbers: keep integers whole, otherwise up to six significant figures."""
+    if float(value).is_integer() and abs(value) < 1e15:
+        return str(int(value))
+    return f"{value:g}"
+
+
 @dataclass
 class TrainingRanges:
     """Per-feature min/max observed during training, used for extrapolation checks."""
@@ -65,10 +72,12 @@ class TrainingRanges:
             except (TypeError, ValueError):
                 continue
             if value < low:
-                warnings.append(f"{col}={value:.3g} is below the training minimum {low:.3g}")
+                warnings.append(
+                    f"{col}={_fmt_num(value)} is below the training minimum {_fmt_num(low)}"
+                )
             elif value > self.maxs[col]:
                 warnings.append(
-                    f"{col}={value:.3g} is above the training maximum {self.maxs[col]:.3g}"
+                    f"{col}={_fmt_num(value)} is above the training maximum {_fmt_num(self.maxs[col])}"
                 )
         for col, seen in self.categories.items():
             if col not in record:
@@ -128,23 +137,42 @@ class IntervalModel:
         X = raw.drop(columns=[TARGET])
         scale = model_name in {"linear", "ridge"}
 
-        n_splits = min(n_splits, max(2, len(raw) // 10))
         residuals: list[float] = []
-        if n_splits >= 2:
-            kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-            for tr, te in kf.split(X):
-                pipeline = build_pipeline(
-                    build_estimator(model_name, params), feature_config, scale=scale
-                )
-                pipeline.fit(X.iloc[tr], y[tr])
-                preds = pipeline.predict(X.iloc[te])
-                residuals.extend((y[te] - preds).tolist())
-        else:  # pragma: no cover - tiny datasets
+
+        def _fold_residuals(train_idx, test_idx) -> None:
             pipeline = build_pipeline(
                 build_estimator(model_name, params), feature_config, scale=scale
             )
-            pipeline.fit(X, y)
-            residuals.extend((y - pipeline.predict(X)).tolist())
+            pipeline.fit(X.iloc[train_idx], y[train_idx])
+            preds = pipeline.predict(X.iloc[test_idx])
+            residuals.extend((y[test_idx] - preds).tolist())
+
+        years = X["year"] if "year" in X.columns else None
+        unique_years = np.sort(years.unique()) if years is not None else np.array([])
+        n_years = len(unique_years)
+        if n_years >= 3:
+            # Forward chaining: train on all years before a cutoff, predict the cutoff
+            # year. This mirrors the headline temporal scheme, so the residual widths
+            # match the extrapolation the intervals must cover at prediction time.
+            n_folds = min(3, n_years - 1)
+            for cutoff in unique_years[-(n_folds + 1):-1]:
+                train_idx = np.where((years < cutoff).to_numpy())[0]
+                test_idx = np.where((years == cutoff).to_numpy())[0]
+                if len(train_idx) and len(test_idx):
+                    _fold_residuals(train_idx, test_idx)
+
+        if not residuals:  # pragma: no cover - fallback for tiny / year-less data
+            n_splits = min(5, max(2, len(raw) // 10))
+            if n_splits >= 2:
+                kf = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+                for tr, te in kf.split(X):
+                    _fold_residuals(tr, te)
+            else:
+                pipeline = build_pipeline(
+                    build_estimator(model_name, params), feature_config, scale=scale
+                )
+                pipeline.fit(X, y)
+                residuals.extend((y - pipeline.predict(X)).tolist())
 
         residuals = np.asarray(residuals, dtype=float)
         alpha = 1.0 - nominal_coverage

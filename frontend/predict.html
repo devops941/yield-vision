@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Predict</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const view = renderShell();
+  const FIELDS = [
+    ["state", "text", "Punjab"], ["district", "text", "Ludhiana"], ["crop", "text", "rice"], ["season", "text", "Kharif"],
+    ["year", "number", 2024], ["area_ha", "number", 1000], ["rainfall_mm", "number", 850],
+    ["temp_mean_c", "number", 26], ["temp_max_c", "number", 34], ["temp_min_c", "number", 18],
+    ["humidity_pct", "number", 65], ["soil_n_kgha", "number", 250], ["soil_p_kgha", "number", 25],
+    ["soil_k_kgha", "number", 200], ["soil_ph", "number", 6.5], ["soil_oc_pct", "number", 0.6],
+    ["fertilizer_kgha", "number", 120], ["irrigated_frac", "number", 0.6], ["pesticide_kgha", "number", 2.5],
+  ];
+  const WHATIF = ["rainfall_mm", "temp_mean_c", "soil_n_kgha", "soil_ph", "irrigated_frac", "fertilizer_kgha"];
+
+  view.innerHTML = `
+    <div class="grid cols-1-2">
+      <div class="card">
+        <h3 class="card-title">Conditions</h3>
+        <p class="card-sub">Enter the season's conditions to predict yield</p>
+        <div id="form"></div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn btn-primary" id="predict">Predict yield</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="card">
+          <h3 class="card-title">Prediction</h3>
+          <p class="card-sub">Point estimate with an 80% prediction interval</p>
+          <div id="result">${emptyState("Enter conditions and press Predict.")}</div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <h3 class="card-title">What-if sensitivity</h3>
+          <p class="card-sub">Vary one input while holding the rest fixed</p>
+          <label class="field"><span>Feature to vary</span><select id="whatif-feature">
+            ${WHATIF.map(f => `<option value="${f}">${f}</option>`).join("")}
+          </select></label>
+          <div class="chart sm" id="chart-whatif"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3 class="card-title">Batch prediction</h3>
+        <p class="card-sub">Upload a CSV of conditions; download predictions with intervals</p>
+        <div class="dropzone" id="batch-drop">
+          ${ICONS.upload}
+          <div><strong>Drop a CSV here</strong> or click to browse</div>
+          <input type="file" id="batch-file" accept=".csv,.xlsx" hidden />
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Recent predictions</h3>
+        <p class="card-sub">History of single predictions</p>
+        <div class="table-wrap" style="max-height:320px;overflow:auto"><table class="data" id="history">
+          <thead><tr><th>When</th><th>Crop</th><th>Yield</th><th>Range</th></tr></thead><tbody></tbody>
+        </table></div>
+      </div>
+    </div>
+  `;
+
+  html("form", FIELDS.map(([name, type, def]) => `
+    <label class="field"><span>${fmt.title(name)}</span>
+      <input data-name="${name}" type="${type}" value="${def}" />
+    </label>`).join(""));
+
+  function collect() {
+    const o = {};
+    document.querySelectorAll("#form input").forEach(i => {
+      o[i.dataset.name] = i.type === "number" ? Number(i.value) : i.value;
+    });
+    return o;
+  }
+
+  document.getElementById("predict").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Predicting…';
+    try {
+      const r = await API.post("/api/predict", collect());
+      const width = r.pred_low != null && r.pred_high != null ? r.pred_high - r.pred_low : null;
+      html("result", `
+        <div class="stat" style="border:none;padding:0">
+          <div class="label">Predicted yield</div>
+          <div class="value" style="font-size:38px">${fmt.num(r.y_pred)}<small>t/ha</small></div>
+        </div>
+        ${r.pred_low != null ? `<div class="kv"><span>80% interval</span><span>${fmt.num(r.pred_low)} – ${fmt.num(r.pred_high)} t/ha</span></div>` : ""}
+        ${width != null ? `<div class="kv"><span>Interval width</span><span>± ${fmt.num(width / 2)} t/ha</span></div>` : ""}
+        <div class="kv"><span>Prediction id</span><span>#${r.prediction_id}</span></div>
+        ${r.warnings && r.warnings.length ? `<div style="margin-top:12px">${r.warnings.map(w => `<div class="badge warn" style="display:block;margin-bottom:6px;white-space:normal">${w}</div>`).join("")}</div>` : '<div class="badge ok" style="margin-top:12px">Inputs within training range</div>'}
+      `);
+      toast("Prediction ready", "ok", 2200);
+      loadHistory();
+    } catch (e) { toast(e.message, "err"); html("result", emptyState(e.message)); }
+    finally { btn.disabled = false; btn.textContent = "Predict yield"; }
+  });
+
+  document.getElementById("whatif-feature").addEventListener("change", loadWhatIf);
+  async function loadWhatIf() {
+    const feature = document.getElementById("whatif-feature").value;
+    try {
+      const body = Object.assign(collect(), { feature });
+      const r = await API.post("/api/predict/whatif", body);
+      drawChart("chart-whatif", [
+        { x: r.values, y: r.predictions, type: "scatter", mode: "lines+markers", name: "Predicted",
+          line: { width: 3, color: THEME.accent }, marker: { size: 6 } },
+        ...(r.pred_high[0] != null ? [
+          { x: r.values, y: r.pred_high, type: "scatter", mode: "lines", line: { width: 0 }, showlegend: false, hoverinfo: "skip" },
+          { x: r.values, y: r.pred_low, type: "scatter", mode: "lines", line: { width: 0 }, fill: "tonexty",
+            fillcolor: "rgba(184,255,61,0.14)", name: "80% interval", hoverinfo: "skip" },
+        ] : []),
+      ], { margin: { l: 52, r: 20, t: 20, b: 44 }, xaxis: { title: feature }, yaxis: { title: "Predicted t/ha" } });
+    } catch (e) { html("chart-whatif", emptyState(e.message)); }
+  }
+
+  const bd = document.getElementById("batch-drop");
+  const bf = document.getElementById("batch-file");
+  bd.addEventListener("click", () => bf.click());
+  ["dragover", "dragenter"].forEach(ev => bd.addEventListener(ev, e => { e.preventDefault(); bd.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach(ev => bd.addEventListener(ev, e => { e.preventDefault(); bd.classList.remove("drag"); }));
+  bd.addEventListener("drop", e => { if (e.dataTransfer.files[0]) batch(e.dataTransfer.files[0]); });
+  bf.addEventListener("change", () => { if (bf.files[0]) batch(bf.files[0]); });
+
+  async function batch(file) {
+    try {
+      const res = await API.upload("/api/predict/batch", file);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "yieldvision_predictions.csv"; a.click();
+      URL.revokeObjectURL(url);
+      toast("Batch predictions downloaded", "ok");
+    } catch (e) { toast(e.message, "err"); }
+  }
+
+  async function loadHistory() {
+    try {
+      const h = (await API.get("/api/predict/history?limit=25")).predictions;
+      document.querySelector("#history tbody").innerHTML = h.map(p => `
+        <tr>
+          <td>${fmt.date(p.created_at)}</td>
+          <td>${p.inputs.crop ?? "–"}</td>
+          <td class="num">${fmt.num(p.y_pred)}</td>
+          <td class="num">${p.pred_low != null ? fmt.num(p.pred_low) + " – " + fmt.num(p.pred_high) : "–"}</td>
+        </tr>`).join("") || `<tr><td colspan="4">${emptyState("No predictions yet.")}</td></tr>`;
+    } catch (_) {}
+  }
+
+  loadHistory();
+  loadWhatIf();
+});
+</script>
+</body>
+</html>
