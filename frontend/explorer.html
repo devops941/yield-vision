@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Trend Explorer</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const view = renderShell();
+  view.innerHTML = `
+    <div class="card">
+      <div class="grid cols-4">
+        <label class="field"><span>Crop</span><select id="f-crop"><option value="">All crops</option></select></label>
+        <label class="field"><span>District</span><select id="f-district"><option value="">All districts</option></select></label>
+        <label class="field"><span>Start year</span><select id="f-start"></select></label>
+        <label class="field"><span>End year</span><select id="f-end"></select></label>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="apply">Apply filters</button>
+        <button class="btn btn-ghost" id="reset">Reset</button>
+      </div>
+    </div>
+
+    <div class="grid cols-4" id="stats" style="margin-top:16px"></div>
+
+    <div class="grid cols-2-1" style="margin-top:16px">
+      <div class="card">
+        <h3 class="card-title">Yield over time</h3>
+        <p class="card-sub" id="trend-caption">Mean yield per year with fitted trend</p>
+        <div class="chart" id="chart-trend"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Trend test</h3>
+        <p class="card-sub">Mann-Kendall & Sen's slope</p>
+        <div id="trend-stats"></div>
+      </div>
+    </div>
+
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3 class="card-title">Climate vs yield</h3>
+        <p class="card-sub">Spearman correlation with significance</p>
+        <div class="btn-row" style="margin-bottom:10px">
+          <div class="pill-row" id="var-pills"></div>
+        </div>
+        <div class="chart" id="chart-climate"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Regions</h3>
+        <p class="card-sub">Highest and lowest mean yield</p>
+        <div class="chart" id="chart-regions"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="btn-row" style="justify-content:space-between">
+        <div><h3 class="card-title">Underlying records</h3><p class="card-sub">Filtered dataset preview</p></div>
+        <button class="btn btn-ghost btn-sm" id="export-csv">Export CSV</button>
+      </div>
+      <div class="table-wrap" style="margin-top:12px;max-height:420px;overflow:auto"><table class="data" id="records-table">
+        <thead><tr><th>State</th><th>District</th><th>Crop</th><th>Season</th><th>Year</th><th>Yield</th><th>Rainfall</th><th>Temp</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  `;
+
+  let filters = {};
+  let climateVar = "rainfall_mm";
+
+  try {
+    const f = await API.get("/api/explorer/filters");
+    fillSelect("f-crop", f.crops);
+    fillSelect("f-district", f.districts);
+    fillSelect("f-start", f.years);
+    fillSelect("f-end", f.years);
+    document.getElementById("f-start").value = f.years[0];
+    document.getElementById("f-end").value = f.years[f.years.length - 1];
+    html("var-pills", f.climate_variables.map((v, i) =>
+      `<span class="pill ${i === 0 ? "active" : ""}" data-var="${v}">${fmt.title(v)}</span>`).join(""));
+    document.querySelectorAll("#var-pills .pill").forEach(p => p.addEventListener("click", () => {
+      document.querySelectorAll("#var-pills .pill").forEach(x => x.classList.remove("active"));
+      p.classList.add("active");
+      climateVar = p.dataset.var;
+      loadClimate();
+    }));
+  } catch (e) {
+    view.innerHTML = `<div class="card">${emptyState("No dataset loaded. Go to Upload & Validate first.")}</div>`;
+    return;
+  }
+
+  function fillSelect(id, values) {
+    const sel = document.getElementById(id);
+    values.forEach(v => { const o = document.createElement("option"); o.value = v; o.textContent = v; sel.appendChild(o); });
+  }
+
+  function qs() {
+    const p = new URLSearchParams();
+    if (filters.crop) p.set("crop", filters.crop);
+    if (filters.district) p.set("district", filters.district);
+    if (filters.start) p.set("start", filters.start);
+    if (filters.end) p.set("end", filters.end);
+    return p.toString();
+  }
+
+  async function loadAll() {
+    await Promise.all([loadTrend(), loadClimate(), loadRegions(), loadRecords()]);
+  }
+
+  async function loadTrend() {
+    const data = await API.get(`/api/explorer/trend?${qs()}`);
+    const s = data.series;
+    const values = s.map(r => r.mean_yield);
+    const mean = values.reduce((a, b) => a + b, 0) / (values.length || 1);
+    const max = Math.max(...values), min = Math.min(...values);
+    html("stats", `
+      <div class="stat"><div class="label">Mean yield</div><div class="value">${fmt.num(mean)}<small>t/ha</small></div><div class="delta">${s.length} years</div></div>
+      <div class="stat"><div class="label">Peak</div><div class="value">${fmt.num(max)}<small>t/ha</small></div><div class="delta">best year in range</div></div>
+      <div class="stat"><div class="label">Low</div><div class="value">${fmt.num(min)}<small>t/ha</small></div><div class="delta">worst year in range</div></div>
+      <div class="stat"><div class="label">Sen's slope</div><div class="value">${fmt.num(data.trend.sen_slope_t_ha_per_year, 4)}</div><div class="delta">t/ha per year</div></div>
+    `);
+
+    drawChart("chart-trend", [
+      { x: s.map(r => r.year), y: s.map(r => r.mean_yield), type: "scatter", mode: "lines+markers", name: "Mean yield", line: { width: 3, color: THEME.accent } },
+      { x: s.map(r => r.year), y: s.map(r => r.trend_line), type: "scatter", mode: "lines", name: "Trend", line: { dash: "dot", color: THEME.accent2 } },
+    ], { margin: { l: 52, r: 20, t: 20, b: 44 }, yaxis: { title: "t/ha" } });
+
+    const t = data.trend;
+    const trendBadge = t.trend === "increasing" ? '<span class="badge ok">increasing</span>'
+      : t.trend === "decreasing" ? '<span class="badge err">decreasing</span>' : '<span class="badge mute">no trend</span>';
+    html("trend-stats", `
+      <div class="kv"><span>Direction</span><span>${trendBadge}</span></div>
+      <div class="kv"><span>Sen's slope</span><span>${fmt.num(t.sen_slope_t_ha_per_year, 4)} t/ha/yr</span></div>
+      <div class="kv"><span>Kendall tau</span><span>${fmt.num(t.tau, 3)}</span></div>
+      <div class="kv"><span>p-value</span><span>${fmt.num(t.p_value, 4)}</span></div>
+    `);
+  }
+
+  async function loadClimate() {
+    const data = await API.get(`/api/explorer/climate-yield?variable=${climateVar}&${filters.crop ? "crop=" + filters.crop : ""}`);
+    const c = data.correlation;
+    drawChart("chart-climate", [
+      { x: data.points.map(p => p[climateVar]), y: data.points.map(p => p.yield_t_ha), type: "scatter", mode: "markers",
+        marker: { size: 6, color: THEME.accent2, opacity: 0.55 }, name: "Records" },
+    ], { margin: { l: 52, r: 20, t: 20, b: 44 }, xaxis: { title: climateVar }, yaxis: { title: "t/ha" }, showlegend: false,
+         annotations: [{ text: `Spearman r = ${fmt.num(c.spearman_r, 3)} · p = ${fmt.num(c.p_value, 4)}${c.significant ? " (significant)" : ""}`,
+           x: 0.5, y: 1.08, xref: "paper", yref: "paper", showarrow: false, font: { color: THEME.text } }] });
+  }
+
+  async function loadRegions() {
+    const data = await API.get(`/api/explorer/regions?${filters.crop ? "crop=" + filters.crop : ""}`);
+    const top = data.top;
+    drawChart("chart-regions", [
+      { x: top.map(r => r.mean_yield), y: top.map(r => r.district), type: "bar", orientation: "h",
+        marker: { color: THEME.accent }, name: "Mean yield" },
+    ], { margin: { l: 110, r: 20, t: 20, b: 44 }, xaxis: { title: "t/ha" }, showlegend: false });
+  }
+
+  async function loadRecords() {
+    const p = new URLSearchParams();
+    if (filters.crop) p.set("crop", filters.crop);
+    if (filters.district) p.set("district", filters.district);
+    p.set("limit", "200");
+    const data = await API.get(`/api/explorer/records?${p.toString()}`);
+    const tbody = document.querySelector("#records-table tbody");
+    tbody.innerHTML = data.records.map(r => `
+      <tr>
+        <td>${fmt.text(r.state)}</td><td>${fmt.text(r.district)}</td><td>${fmt.text(r.crop)}</td><td>${fmt.text(r.season)}</td>
+        <td class="num">${r.year}</td><td class="num">${fmt.num(r.yield_t_ha)}</td>
+        <td class="num">${fmt.num(r.rainfall_mm, 0)}</td><td class="num">${fmt.num(r.temp_mean_c, 1)}</td>
+      </tr>`).join("") || `<tr><td colspan="8">${emptyState()}</td></tr>`;
+  }
+
+  document.getElementById("apply").addEventListener("click", () => {
+    filters = {
+      crop: document.getElementById("f-crop").value,
+      district: document.getElementById("f-district").value,
+      start: document.getElementById("f-start").value,
+      end: document.getElementById("f-end").value,
+    };
+    loadAll();
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    document.getElementById("f-crop").value = "";
+    document.getElementById("f-district").value = "";
+    filters = {};
+    loadAll();
+  });
+  document.getElementById("export-csv").addEventListener("click", () => { window.location = "/api/export/data.csv"; });
+
+  loadAll();
+});
+</script>
+</body>
+</html>

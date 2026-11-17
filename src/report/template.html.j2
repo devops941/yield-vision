@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>{{ title }}</title>
+<style>
+  @page { size: A4; margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica", "Arial", sans-serif; color: #0f172a; font-size: 11px; line-height: 1.5; }
+  h1 { font-size: 24px; margin: 0 0 4px; color: #0f172a; }
+  h2 { font-size: 15px; margin: 22px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #22d3a6; color: #0f172a; }
+  h3 { font-size: 12px; margin: 14px 0 6px; color: #334155; }
+  .muted { color: #64748b; font-size: 10px; }
+  .cover { border-left: 6px solid #22d3a6; padding: 12px 16px; background: #f8fafc; margin-bottom: 18px; }
+  .cards { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+  .card { flex: 1 1 28%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; background: #ffffff; }
+  .card .label { color: #64748b; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+  .card .value { font-size: 17px; font-weight: 700; color: #0f172a; }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 10px; }
+  th, td { text-align: left; padding: 5px 7px; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f1f5f9; color: #334155; font-weight: 600; }
+  img { width: 100%; max-width: 640px; border: 1px solid #e2e8f0; border-radius: 6px; margin: 6px 0; }
+  .callout { background: #ecfdf5; border-left: 4px solid #22d3a6; padding: 8px 12px; border-radius: 4px; font-size: 10px; }
+  footer { margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 6px; }
+  .two-col { display: flex; gap: 10px; flex-wrap: wrap; }
+  .two-col img { max-width: 310px; }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <h1>{{ title }}</h1>
+    <div class="muted">Generated {{ generated_at }} &middot; Climate and Soil-Driven Crop Yield Prediction Engine</div>
+  </div>
+
+  {% if 'summary' in include_sections %}
+  <h2>1. Dataset summary</h2>
+  <div class="cards">
+    <div class="card"><div class="label">Records</div><div class="value">{{ "{:,}".format(n_rows) }}</div></div>
+    <div class="card"><div class="label">Crops</div><div class="value">{{ n_crops }}</div></div>
+    <div class="card"><div class="label">Regions</div><div class="value">{{ n_regions }}</div></div>
+    <div class="card"><div class="label">Years</div><div class="value">{{ year_range }}</div></div>
+    <div class="card"><div class="label">Mean yield</div><div class="value">{{ "%.2f"|format(mean_yield) if mean_yield else "n/a" }} t/ha</div></div>
+  </div>
+  {% if crop_comparison %}
+  <h3>Yield by crop</h3>
+  <table>
+    <tr><th>Crop</th><th>Mean yield (t/ha)</th><th>Records</th></tr>
+    {% for row in crop_comparison %}
+    <tr><td>{{ row.crop }}</td><td>{{ "%.3f"|format(row.mean_yield) }}</td><td>{{ row.n }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% endif %}
+
+  {% if 'trends' in include_sections and trend_summary %}
+  <h2>2. Historical trends</h2>
+  <div class="callout">
+    {{ trend_summary.increasing }} of {{ trend_summary.n_series }} district-crop series show a statistically
+    significant increasing yield trend (Mann-Kendall, p &lt; 0.05). Median Sen slope
+    {{ "%.4f"|format(trend_summary.median_sen_slope) }} t/ha per year.
+  </div>
+  {% if figures.trend %}<img src="{{ figures.trend }}" alt="Yield trend" />{% endif %}
+  <div class="two-col">
+    {% if figures.climate %}<img src="{{ figures.climate }}" alt="Climate vs yield" />{% endif %}
+    {% if figures.regions %}<img src="{{ figures.regions }}" alt="Top regions" />{% endif %}
+  </div>
+  {% if trend_table %}
+  <h3>Strongest trends</h3>
+  <table>
+    <tr><th>District</th><th>Crop</th><th>Trend</th><th>Sen slope</th><th>p-value</th><th>CV</th></tr>
+    {% for row in trend_table %}
+    <tr>
+      <td>{{ row.district }}</td><td>{{ row.crop }}</td><td>{{ row.trend }}</td>
+      <td>{{ "%.4f"|format(row.sen_slope_t_ha_per_year) if row.sen_slope_t_ha_per_year is not none else "-" }}</td>
+      <td>{{ "%.4f"|format(row.p_value) if row.p_value is not none else "-" }}</td>
+      <td>{{ "%.3f"|format(row.cv_yield) if row.cv_yield is not none else "-" }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% endif %}
+
+  {% if 'models' in include_sections %}
+  <h2>3. Models and accuracy</h2>
+  {% if active_model %}
+  <div class="callout">
+    Active model: <strong>{{ active_model.name }}</strong> ({{ active_model.algo }}).
+    {% if active_model.interval_level %}
+    80% prediction interval: predicted yield &plusmn; {{ "%.2f"|format(active_model.interval_high) }} / {{ "%.2f"|format(active_model.interval_low) }} t/ha
+    (nominal coverage {{ "%.0f"|format(active_model.interval_level * 100) }}%).
+    {% endif %}
+  </div>
+  {% endif %}
+  <table>
+    <tr><th>Model</th><th>Scheme</th><th>N</th><th>MAE</th><th>RMSE</th><th>R&sup2;</th><th>MAPE %</th><th>Skill</th></tr>
+    {% for model in models %}
+      {% for scheme, m in model.metrics.items() %}
+      <tr>
+        <td>{{ model.name }}{% if model.is_active %} <strong>(active)</strong>{% endif %}</td>
+        <td>{{ scheme }}</td>
+        <td>{{ m.n }}</td>
+        <td>{{ "%.3f"|format(m.mae) if m.mae is not none else "-" }}</td>
+        <td>{{ "%.3f"|format(m.rmse) if m.rmse is not none else "-" }}</td>
+        <td>{{ "%.3f"|format(m.r2) if m.r2 is not none else "-" }}</td>
+        <td>{{ "%.1f"|format(m.mape) if m.mape is not none else "-" }}</td>
+        <td>{{ "%.2f"|format(m.skill_vs_baseline) if m.skill_vs_baseline is not none else "-" }}</td>
+      </tr>
+      {% endfor %}
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if 'explainability' in include_sections and figures.importance %}
+  <h2>4. Explainability</h2>
+  <img src="{{ figures.importance }}" alt="Permutation importance" />
+  <div class="two-col">
+    {% if figures.pdp_rainfall %}<img src="{{ figures.pdp_rainfall }}" alt="PDP rainfall" />{% endif %}
+    {% if figures.pdp_nitrogen %}<img src="{{ figures.pdp_nitrogen }}" alt="PDP nitrogen" />{% endif %}
+  </div>
+  <div class="callout">
+    Rainfall and soil nitrogen are consistently among the strongest drivers of yield in this dataset.
+    This describes association in the data, not proof of causation.
+  </div>
+  {% endif %}
+
+  {% if 'predictions' in include_sections and figures.predictions %}
+  <h2>5. Predictions</h2>
+  <img src="{{ figures.predictions }}" alt="Actual vs predicted" />
+  {% endif %}
+
+  <footer class="muted">
+    YieldVision &middot; Report generated automatically. Predicted values are estimates with uncertainty;
+    they describe association in the training data and are not guarantees of future yield.
+  </footer>
+</body>
+</html>

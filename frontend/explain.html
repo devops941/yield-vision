@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Explainability</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const view = renderShell();
+  view.innerHTML = `
+    <div class="card">
+      <div class="btn-row" style="justify-content:space-between">
+        <div>
+          <h3 class="card-title">Model</h3>
+          <p class="card-sub">Pick a trained model to interpret</p>
+        </div>
+        <select id="model-select" style="width:auto;min-width:220px"></select>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 class="card-title">Plain-language summary</h3>
+      <p class="card-sub">Association in the data, not proof of causation</p>
+      <div id="summary"></div>
+    </div>
+
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3 class="card-title">Permutation importance</h3>
+        <p class="card-sub">Increase in RMSE when a raw input is shuffled</p>
+        <div class="chart" id="chart-importance"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Impurity importance</h3>
+        <p class="card-sub">Tree-based split contribution (when available)</p>
+        <div class="chart" id="chart-impurity"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 class="card-title">Partial dependence</h3>
+      <p class="card-sub">How predicted yield responds as one feature varies</p>
+      <label class="field" style="max-width:320px"><span>Feature</span><select id="pdp-feature"></select></label>
+      <div class="chart" id="chart-pdp"></div>
+    </div>
+  `;
+
+  const FEATURES = ["rainfall_mm", "temp_mean_c", "soil_n_kgha", "soil_ph", "irrigated_frac", "fertilizer_kgha", "soil_p_kgha", "humidity_pct"];
+  html("pdp-feature", FEATURES.map(f => `<option value="${f}">${f}</option>`).join(""));
+
+  let models = [];
+  try { models = (await API.get("/api/models")).models; } catch (_) {}
+  if (!models.length) { view.innerHTML = `<div class="card">${emptyState("No models trained yet.")}</div>`; return; }
+
+  html("model-select", models.map(m => `<option value="${m.model_id}" ${m.is_active ? "selected" : ""}>${m.name} (v${m.version})${m.is_active ? " · active" : ""}</option>`).join(""));
+
+  async function load(modelId) {
+    const imp = (await API.get(`/api/models/${modelId}/importance`)).importance;
+    const perm = imp.filter(r => r.permutation_importance != null).sort((a, b) => b.permutation_importance - a.permutation_importance);
+    if (perm.length) {
+      drawChart("chart-importance", [
+        { x: perm.map(r => r.permutation_importance), y: perm.map(r => r.feature), type: "bar", orientation: "h",
+          marker: { color: THEME.accent }, error_x: { array: perm.map(r => r.permutation_std || 0), color: THEME.text } },
+      ], { margin: { l: 130, r: 20, t: 20, b: 44 }, xaxis: { title: "Δ RMSE" }, showlegend: false,
+           yaxis: { autorange: "reversed" } });
+    } else html("chart-importance", emptyState("Permutation importance not available for this model."));
+
+    const impu = imp.filter(r => r.impurity_importance != null).sort((a, b) => b.impurity_importance - a.impurity_importance).slice(0, 12);
+    if (impu.length) {
+      drawChart("chart-impurity", [
+        { x: impu.map(r => r.impurity_importance), y: impu.map(r => r.feature), type: "bar", orientation: "h",
+          marker: { color: THEME.accent3 } },
+      ], { margin: { l: 130, r: 20, t: 20, b: 44 }, xaxis: { title: "Importance" }, showlegend: false,
+           yaxis: { autorange: "reversed" } });
+    } else html("chart-impurity", emptyState("No impurity importance (linear or baseline model)."));
+
+    try {
+      const s = await API.get(`/api/models/${modelId}/summary`);
+      html("summary", `<div class="badge info" style="margin-bottom:8px">model #${modelId}</div><p style="font-size:14px">${s.summary}</p>`);
+    } catch (_) { html("summary", emptyState("No summary available.")); }
+
+    loadPdp(modelId, document.getElementById("pdp-feature").value);
+  }
+
+  async function loadPdp(modelId, feature) {
+    try {
+      const c = await API.get(`/api/models/${modelId}/pdp?feature=${feature}`);
+      drawChart("chart-pdp", [
+        { x: c.grid, y: c.values, type: "scatter", mode: "lines", line: { width: 3, color: THEME.accent }, name: feature,
+          fill: "tozeroy", fillcolor: "rgba(184,255,61,0.12)" },
+      ], { margin: { l: 56, r: 20, t: 20, b: 44 }, xaxis: { title: feature }, yaxis: { title: "Predicted t/ha" }, showlegend: false });
+    } catch (e) { html("chart-pdp", emptyState(e.message)); }
+  }
+
+  document.getElementById("model-select").addEventListener("change", e => load(e.target.value));
+  document.getElementById("pdp-feature").addEventListener("change", e => loadPdp(document.getElementById("model-select").value, e.target.value));
+
+  load(document.getElementById("model-select").value);
+});
+</script>
+</body>
+</html>

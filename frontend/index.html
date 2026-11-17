@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Dashboard</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", async () => {
+  const view = renderShell();
+  view.innerHTML = `
+    <section class="hero">
+      <div class="tag"><span class="dot"></span> Climate · Soil · Yield intelligence</div>
+      <h2>Turn weather and soil data into confident yield forecasts.</h2>
+      <p>YieldVision validates raw crop data, uncovers historical trends, engineers climate features,
+         trains and compares regression models, then predicts yield with an honest uncertainty range.</p>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="go-sample">Load sample dataset</button>
+        <a class="btn" href="upload.html">Upload your data</a>
+        <a class="btn btn-ghost" href="/docs" target="_blank">API docs</a>
+      </div>
+    </section>
+
+    <div class="grid cols-4" id="stats" style="margin-top:16px">
+      ${Array(4).fill('<div class="skeleton"></div>').join("")}
+    </div>
+
+    <div class="grid cols-2-1" style="margin-top:16px">
+      <div class="card">
+        <h3 class="card-title">Yield trajectory</h3>
+        <p class="card-sub">Mean yield per year across the loaded dataset</p>
+        <div class="chart" id="chart-trend"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Yield by crop</h3>
+        <p class="card-sub">Average t/ha</p>
+        <div class="chart sm" id="chart-crops"></div>
+      </div>
+    </div>
+
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3 class="card-title">Pipeline status</h3>
+        <p class="card-sub">Where you are in the workflow</p>
+        <div id="pipeline-status"></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Quick actions</h3>
+        <p class="card-sub">Jump straight in</p>
+        <div class="grid cols-2" id="quick"></div>
+      </div>
+    </div>
+  `;
+
+  async function loadSummary() {
+    try {
+      const s = await API.get("/api/explorer/summary");
+      html("stats", `
+        <div class="stat"><div class="label">Records</div><div class="value">${fmt.int(s.rows)}</div><div class="delta">${s.n_crops} crops · ${s.n_regions} regions</div></div>
+        <div class="stat"><div class="label">Mean yield</div><div class="value">${fmt.num(s.mean_yield)}<small>t/ha</small></div><div class="delta">median ${fmt.num(s.median_yield)}</div></div>
+        <div class="stat"><div class="label">Year range</div><div class="value">${s.year_min}<small>– ${s.year_max}</small></div><div class="delta">${s.year_max - s.year_min + 1} seasons of history</div></div>
+        <div class="stat"><div class="label">Coverage</div><div class="value">${s.districts.length}<small>districts</small></div><div class="delta">${s.states.length} states</div></div>
+      `);
+
+      const trend = await API.get("/api/explorer/trend");
+      drawChart("chart-trend", [
+        { x: trend.series.map(r => r.year), y: trend.series.map(r => r.mean_yield), type: "scatter", mode: "lines+markers", name: "Mean yield", line: { width: 3, color: THEME.accent } },
+        { x: trend.series.map(r => r.year), y: trend.series.map(r => r.trend_line), type: "scatter", mode: "lines", name: "Trend", line: { dash: "dot", color: THEME.accent2 } },
+      ], { margin: { l: 52, r: 20, t: 20, b: 44 }, yaxis: { title: "t/ha" } });
+
+      const crops = await API.get("/api/explorer/crops");
+      drawChart("chart-crops", [
+        { x: crops.crops.map(c => c.crop), y: crops.crops.map(c => c.mean_yield), type: "bar",
+          marker: { color: crops.crops.map((_, i) => THEME.palette[i % THEME.palette.length]) } },
+      ], { margin: { l: 48, r: 16, t: 20, b: 44 }, yaxis: { title: "t/ha" }, showlegend: false });
+
+      await renderPipeline();
+      document.getElementById("side-status") && refreshSideStatus();
+    } catch (e) {
+      html("stats", `<div class="card" style="grid-column:1/-1">
+        <div class="empty">${ICONS.empty}<div>No dataset loaded yet. Load the sample dataset or upload your own to begin.</div></div>
+      </div>`);
+      ["chart-trend", "chart-crops"].forEach(id => html(id, emptyState("Charts appear once data is loaded.")));
+      html("pipeline-status", emptyState("Load data to see pipeline status."));
+    }
+  }
+
+  async function renderPipeline() {
+    let models = [];
+    try { models = (await API.get("/api/models")).models || []; } catch (_) {}
+    const active = models.find(m => m.is_active);
+    const steps = [
+      { label: "Data loaded & validated", done: true },
+      { label: "Trend analytics ready", done: true },
+      { label: "Models trained", done: models.length > 0 },
+      { label: "Model activated", done: !!active },
+      { label: "Predictions & reports", done: !!active },
+    ];
+    html("pipeline-status", steps.map(s => `
+      <div class="kv"><span>${s.label}</span><span>${s.done ? '<span class="badge ok">done</span>' : '<span class="badge mute">pending</span>'}</span></div>
+    `).join("") + (active ? `<div class="muted" style="margin-top:10px">Active model: <strong>${active.name}</strong></div>` : ""));
+
+    html("quick", `
+      <a class="btn" href="explorer.html">Explore trends</a>
+      <a class="btn" href="features.html">Build features</a>
+      <a class="btn" href="models.html">Train models</a>
+      <a class="btn" href="predict.html">Predict yield</a>
+    `);
+  }
+
+  document.getElementById("go-sample").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Generating…';
+    try {
+      const r = await API.post("/api/datasets/sample");
+      toast(`Loaded ${fmt.int(r.inserted)} synthetic records`, "ok");
+      await loadSummary();
+    } catch (e) {
+      toast(e.message, "err");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Load sample dataset";
+    }
+  });
+
+  loadSummary();
+});
+</script>
+</body>
+</html>

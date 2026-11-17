@@ -1,0 +1,44 @@
+# YieldVision - Climate and Soil-Driven Crop Yield Prediction Engine
+# Pinned to the latest stable releases (verified 2026-11)
+
+# --- Core data / numeric ---
+pandas==3.1.1
+numpy==2.5.5
+
+# --- Machine learning ---
+scikit-learn==1.9.1
+
+# --- Statistics ---
+scipy==1.18.1
+statsmodels==0.15.0
+pymannkendall==1.4.3
+
+# --- File handling ---
+openpyxl==3.1.5
+python-multipart==0.0.34
+
+# --- Backend ---
+fastapi==0.163.1
+uvicorn[standard]==0.54.0
+pydantic==2.14.3
+
+# --- Database ---
+SQLAlchemy==2.1.9
+
+# --- Model persistence ---
+joblib==1.6.0
+
+# --- Reports ---
+Jinja2==3.1.6
+matplotlib==3.11.2
+weasyprint==70.0
+
+# --- Config ---
+PyYAML==6.0.3
+
+# --- Testing / quality ---
+pytest==9.2.0
+pytest-cov==7.1.0
+httpx==0.28.1
+ruff==0.17.5
+black==26.10.1

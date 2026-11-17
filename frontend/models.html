@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Train Models</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const view = renderShell();
+  const MODELS = [
+    ["baseline_crop_season", "Baseline · mean by crop-season"],
+    ["baseline_district_history", "Baseline · district history (3-yr)"],
+    ["linear", "Linear Regression"],
+    ["ridge", "Ridge Regression"],
+    ["random_forest", "Random Forest"],
+    ["hist_gradient_boosting", "Histogram Gradient Boosting"],
+  ];
+  const SCHEMES = [["temporal", "Temporal (headline)"], ["group", "GroupKFold by district"], ["random", "Random K-fold (optimistic)"]];
+
+  view.innerHTML = `
+    <div class="grid cols-2-1">
+      <div class="card">
+        <h3 class="card-title">Select models</h3>
+        <p class="card-sub">Train several models under each validation scheme and compare them.</p>
+        <div id="model-opts"></div>
+        <h3 class="card-title" style="margin-top:14px">Validation schemes</h3>
+        <div id="scheme-opts"></div>
+        <div class="grid cols-2" style="margin-top:14px">
+          <label class="field"><span>Test years (temporal)</span><input type="number" id="test-years" value="4" min="1" max="12" /></label>
+          <label class="field"><span>Data source</span><select id="dataset">
+            <option value="database">Committed database</option>
+            <option value="sample">Regenerate sample</option>
+          </select></label>
+        </div>
+        <label class="check"><input type="checkbox" id="tune" /> Tune hyperparameters (RandomizedSearchCV, slower)</label>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn btn-primary" id="train">Start training</button>
+          <button class="btn btn-ghost" id="refresh">Refresh registry</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Training progress</h3>
+        <p class="card-sub">Runs as a background job</p>
+        <div id="progress">${emptyState("No job running.")}</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 class="card-title">Model registry</h3>
+      <p class="card-sub">Saved versions with headline metrics. Activate the model used for predictions.</p>
+      <div class="table-wrap"><table class="data" id="registry">
+        <thead><tr><th>ID</th><th>Model</th><th>Version</th><th>RMSE</th><th>R²</th><th>MAE</th><th>Skill</th><th>Active</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  `;
+
+  html("model-opts", MODELS.map(([k, l], i) => `
+    <label class="check"><input type="checkbox" class="model" value="${k}" ${i < 4 ? "checked" : ""} /> ${l}</label>`).join(""));
+  html("scheme-opts", SCHEMES.map(([k, l], i) => `
+    <label class="check"><input type="checkbox" class="scheme" value="${k}" ${i < 2 ? "checked" : ""} /> ${l}</label>`).join(""));
+
+  async function loadRegistry() {
+    const models = (await API.get("/api/models")).models;
+    const tbody = document.querySelector("#registry tbody");
+    if (!models.length) { tbody.innerHTML = `<tr><td colspan="9">${emptyState("No models trained yet.")}</td></tr>`; return; }
+    tbody.innerHTML = models.map(m => {
+      const met = m.metrics.temporal || Object.values(m.metrics)[0] || {};
+      return `<tr>
+        <td class="num">${m.model_id}</td>
+        <td>${m.name}</td>
+        <td class="num">v${m.version}</td>
+        <td class="num">${fmt.num(met.rmse, 3)}</td>
+        <td class="num">${fmt.num(met.r2, 3)}</td>
+        <td class="num">${fmt.num(met.mae, 3)}</td>
+        <td class="num">${met.skill_vs_baseline !== undefined && met.skill_vs_baseline !== null ? fmt.pct(met.skill_vs_baseline) : "–"}</td>
+        <td>${m.is_active ? '<span class="badge ok">active</span>' : '<span class="badge mute">—</span>'}</td>
+        <td>${m.is_active ? "" : `<button class="btn btn-sm" data-activate="${m.model_id}">Activate</button>`}</td>
+      </tr>`;
+    }).join("");
+    tbody.querySelectorAll("[data-activate]").forEach(b => b.addEventListener("click", async () => {
+      try { await API.post(`/api/models/${b.dataset.activate}/activate`); toast("Model activated", "ok"); loadRegistry(); }
+      catch (e) { toast(e.message, "err"); }
+    }));
+  }
+
+  document.getElementById("train").addEventListener("click", async (ev) => {
+    const models = [...document.querySelectorAll(".model:checked")].map(i => i.value);
+    const schemes = [...document.querySelectorAll(".scheme:checked")].map(i => i.value);
+    if (!models.length || !schemes.length) { toast("Select at least one model and one scheme", "err"); return; }
+    const btn = ev.currentTarget;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Training…';
+    try {
+      const r = await API.post("/api/models/train", {
+        models, schemes,
+        tune: document.getElementById("tune").checked,
+        test_years: Number(document.getElementById("test-years").value),
+        dataset: document.getElementById("dataset").value,
+      });
+      pollJob(r.job_id);
+    } catch (e) { toast(e.message, "err"); btn.disabled = false; btn.textContent = "Start training"; }
+  });
+
+  async function pollJob(jobId) {
+    const timer = setInterval(async () => {
+      let job;
+      try { job = await API.get(`/api/models/jobs/${jobId}`); } catch (_) { return; }
+      const statusBadge = job.status === "completed" ? '<span class="badge ok">completed</span>'
+        : job.status === "failed" ? '<span class="badge err">failed</span>' : '<span class="badge info">running</span>';
+      html("progress", `
+        <div class="kv"><span>Job</span><span class="mono">${job.job_id}</span></div>
+        <div class="kv"><span>Status</span><span>${statusBadge}</span></div>
+        <div class="kv"><span>Step</span><span>${job.message || "–"}</span></div>
+        <div style="margin:12px 0 6px"><div class="progress"><i style="width:${job.progress || 0}%"></i></div></div>
+        <div class="muted">${job.progress || 0}% complete</div>
+        ${job.error ? `<div class="badge err" style="margin-top:10px">${job.error}</div>` : ""}
+      `);
+      if (job.status === "completed" || job.status === "failed") {
+        clearInterval(timer);
+        document.getElementById("train").disabled = false;
+        document.getElementById("train").textContent = "Start training";
+        if (job.status === "completed") { toast("Training complete", "ok"); loadRegistry(); refreshSideStatus(); }
+        else toast("Training failed: " + job.error, "err");
+      }
+    }, 900);
+  }
+
+  document.getElementById("refresh").addEventListener("click", loadRegistry);
+  loadRegistry();
+});
+</script>
+</body>
+</html>

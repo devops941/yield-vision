@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Feature Engineering</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const view = renderShell();
+  const OPTIONS = [
+    ["include_gdd", "Growing degree days & heat stress", true],
+    ["include_anomalies", "Climate anomalies vs long-term mean", true],
+    ["include_lags", "District history lag (past years only)", true],
+    ["include_interactions", "Rainfall × irrigation, temperature × crop", true],
+    ["include_soil", "Soil N, P, K, pH, organic carbon", true],
+    ["include_categorical", "Crop, season, state, district", true],
+    ["add_missing_indicators", "Missing-value indicator flags", true],
+  ];
+
+  view.innerHTML = `
+    <div class="grid cols-2-1">
+      <div class="card">
+        <h3 class="card-title">Feature options</h3>
+        <p class="card-sub">Choose what the pipeline should engineer. All transforms are fitted inside CV folds.</p>
+        <div id="options"></div>
+        <div class="btn-row" style="margin-top:12px">
+          <button class="btn btn-primary" id="build">Build feature set</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Result</h3>
+        <p class="card-sub">Shape of the engineered matrix</p>
+        <div id="result">${emptyState("Build a feature set to see its shape.")}</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 class="card-title">Engineered columns</h3>
+      <p class="card-sub">Columns produced by the pipeline</p>
+      <div class="pill-row" id="columns"></div>
+    </div>
+
+    <div class="grid cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3 class="card-title">Preview rows</h3>
+        <p class="card-sub">First engineered records</p>
+        <div class="table-wrap" style="max-height:420px;overflow:auto"><table class="data" id="preview-table"><thead></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card">
+        <h3 class="card-title">Numeric distributions</h3>
+        <p class="card-sub">Pick a feature to inspect</p>
+        <label class="field"><span>Feature</span><select id="stat-feature"></select></label>
+        <div class="chart sm" id="chart-stat"></div>
+      </div>
+    </div>
+  `;
+
+  html("options", OPTIONS.map(([key, label, def]) => `
+    <label class="check"><input type="checkbox" id="${key}" ${def ? "checked" : ""} /> ${label}</label>
+  `).join(""));
+
+  function payload() {
+    const o = {};
+    OPTIONS.forEach(([key]) => { o[key] = document.getElementById(key).checked; });
+    return o;
+  }
+
+  let lastStats = null;
+
+  document.getElementById("build").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Building…';
+    try {
+      const r = await API.post("/api/features/build", payload());
+      html("result", `
+        <div class="kv"><span>Rows</span><span>${fmt.int(r.n_rows)}</span></div>
+        <div class="kv"><span>Features</span><span>${fmt.int(r.n_features)}</span></div>
+        <div class="kv"><span>Feature set</span><span>#${r.feature_set_id}</span></div>
+      `);
+      html("columns", r.columns.map(c => `<span class="pill">${c}</span>`).join(""));
+
+      const preview = await API.get(`/api/features/${r.feature_set_id}/preview?limit=15`);
+      renderPreview(preview.preview);
+      lastStats = preview.stats || {};
+      const sel = document.getElementById("stat-feature");
+      sel.innerHTML = Object.keys(lastStats).map(k => `<option value="${k}">${k}</option>`).join("");
+      if (sel.value) loadStat(sel.value);
+      toast(`Engineered ${r.n_features} features`, "ok");
+    } catch (e) { toast(e.message, "err"); }
+    finally { btn.disabled = false; btn.textContent = "Build feature set"; }
+  });
+
+  document.getElementById("stat-feature").addEventListener("change", e => loadStat(e.target.value));
+
+  function cell(v) {
+    if (v === null || v === undefined || v === "") return "–";
+    if (typeof v === "number") return Number.isInteger(v) ? fmt.int(v) : fmt.num(v, 3);
+    return String(v);
+  }
+
+  function renderPreview(rows) {
+    const table = document.getElementById("preview-table");
+    if (!rows.length) { table.innerHTML = `<tbody><tr><td>${emptyState()}</td></tr></tbody>`; return; }
+    const cols = Object.keys(rows[0]);
+    table.innerHTML =
+      `<thead><tr>${cols.map(c => `<th>${c}</th>`).join("")}</tr></thead>` +
+      `<tbody>${rows.map(r => `<tr>${cols.map(c => `<td class="${typeof r[c] === "number" ? "num" : ""}">${cell(r[c])}</td>`).join("")}</tr>`).join("")}</tbody>`;
+  }
+
+  async function loadStat(feature) {
+    if (!lastStats || !lastStats[feature]) return;
+    const s = lastStats[feature];
+    // Build a smooth density-like curve from summary statistics.
+    const lo = s.min, hi = s.max, mean = s.mean, std = s.std || 0;
+    const xs = [], ys = [];
+    const steps = 40;
+    for (let i = 0; i <= steps; i++) {
+      const x = lo + (hi - lo) * (i / steps);
+      const z = std ? (x - mean) / std : 0;
+      xs.push(x);
+      ys.push(Math.exp(-0.5 * z * z));
+    }
+    drawChart("chart-stat", [
+      { x: xs, y: ys, type: "scatter", mode: "lines", fill: "tozeroy", name: feature,
+        line: { color: THEME.accent }, fillcolor: "rgba(184,255,61,0.16)" },
+    ], { margin: { l: 44, r: 16, t: 20, b: 40 }, yaxis: { showticklabels: false, title: "" },
+         xaxis: { title: feature }, showlegend: false,
+         annotations: [{ text: `mean ${fmt.num(mean)} · std ${fmt.num(std)} · min ${fmt.num(lo)} · max ${fmt.num(hi)}`,
+           x: 0.5, y: 1.12, xref: "paper", yref: "paper", showarrow: false, font: { color: THEME.text } }] });
+  }
+});
+</script>
+</body>
+</html>

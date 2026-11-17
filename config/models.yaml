@@ -1,0 +1,44 @@
+# Model hyperparameter grids and cross-validation settings.
+
+cross_validation:
+  # Headline scheme: train on years up to T, test on the last N years.
+  temporal:
+    test_years: 4
+    inner_splits: 3
+  # Group K-fold by district: tests generalisation to unseen districts.
+  group:
+    n_splits: 5
+  # Random K-fold: shown only for comparison, labelled optimistic.
+  random:
+    n_splits: 5
+  # Minimum rows required in a scope before metrics are reported.
+  min_scope_rows: 8
+
+random_forest:
+  n_iter: 40
+  param_distributions:
+    n_estimators: [200, 400, 600, 800, 1000]
+    max_depth: [null, 6, 10, 14, 20, 30]
+    min_samples_leaf: [1, 2, 3, 5, 8]
+    max_features: [1.0, "sqrt", "log2", 0.5, 0.75]
+  fixed:
+    random_state: 42
+    n_jobs: -1
+
+hist_gradient_boosting:
+  max_iter: [200, 400, 600]
+  learning_rate: [0.03, 0.05, 0.1]
+  max_depth: [null, 4, 6, 8]
+  l2_regularization: [0.0, 0.1, 1.0]
+  fixed:
+    random_state: 42
+
+ridge:
+  alpha: [0.01, 0.1, 1.0, 10.0, 100.0]
+
+intervals:
+  nominal_coverage: 0.80
+
+explainability:
+  permutation_n_repeats: 10
+  pdp_grid_resolution: 25

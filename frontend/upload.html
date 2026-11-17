@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>YieldVision · Upload & Validate</title>
+<link rel="stylesheet" href="/static/css/style.css" />
+<script src="/static/js/app.js"></script>
+</head>
+<body>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const view = renderShell();
+  view.innerHTML = `
+    <div class="grid cols-2-1">
+      <div class="card">
+        <h3 class="card-title">Upload data</h3>
+        <p class="card-sub">CSV, Excel or JSON. Columns are matched to canonical names automatically.</p>
+        <div class="dropzone" id="drop">
+          ${ICONS.upload}
+          <div><strong>Drop a file here</strong> or click to browse</div>
+          <div class="muted" style="margin-top:6px">district · crop · season · year · yield · rainfall · temperature · soil</div>
+          <input type="file" id="file" accept=".csv,.xlsx,.xls,.json" hidden />
+        </div>
+        <div class="btn-row" style="margin-top:14px">
+          <a class="btn btn-ghost btn-sm" href="/api/template" download>Download CSV template</a>
+          <button class="btn btn-ghost btn-sm" id="load-sample">Load sample dataset</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Validation summary</h3>
+        <p class="card-sub">Issues are checked per the rule book</p>
+        <div id="summary">${emptyState("Upload a file to validate it.")}</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <div class="btn-row" style="justify-content:space-between">
+        <div>
+          <h3 class="card-title">Issues</h3>
+          <p class="card-sub">Fix, ignore or exclude each issue. Every action is written to the audit trail.</p>
+        </div>
+        <div class="btn-row">
+          <select id="sev-filter" style="width:auto">
+            <option value="">All severities</option>
+            <option value="error">Errors</option>
+            <option value="warning">Warnings</option>
+          </select>
+          <button class="btn btn-primary btn-sm" id="commit" disabled>Commit clean data</button>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top:12px"><table class="data" id="issues-table">
+        <thead><tr><th>Row</th><th>Column</th><th>Value</th><th>Check</th><th>Severity</th><th>Message</th><th>Status</th><th>Action</th></tr></thead>
+        <tbody><tr><td colspan="8">${emptyState("No issues yet.")}</td></tr></tbody>
+      </table></div>
+    </div>
+
+    <div class="card" style="margin-top:16px">
+      <h3 class="card-title">Upload history</h3>
+      <p class="card-sub">Recent files</p>
+      <div class="table-wrap"><table class="data" id="uploads-table">
+        <thead><tr><th>ID</th><th>File</th><th>Rows</th><th>Errors</th><th>Warnings</th><th>Status</th><th>Uploaded</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+  `;
+
+  let currentUpload = null;
+
+  const drop = document.getElementById("drop");
+  const fileInput = document.getElementById("file");
+  drop.addEventListener("click", () => fileInput.click());
+  ["dragover", "dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("drag"); }));
+  drop.addEventListener("drop", e => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+  fileInput.addEventListener("change", () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+  async function handleFile(file) {
+    html("summary", `<div class="empty"><span class="spinner"></span><div style="margin-top:10px">Uploading ${file.name}…</div></div>`);
+    try {
+      const r = await API.upload("/api/uploads", file);
+      currentUpload = r.upload_id;
+      renderSummary(r);
+      await loadIssues();
+      await loadUploads();
+      document.getElementById("commit").disabled = r.blocking;
+      toast(`Validated ${fmt.int(r.summary.n_rows)} rows`, r.summary.n_errors ? "info" : "ok");
+    } catch (e) {
+      toast(e.message, "err");
+      html("summary", emptyState(e.message));
+    }
+  }
+
+  function renderSummary(r) {
+    const total = r.summary.n_errors + r.summary.n_warnings;
+    html("summary", `
+      <div class="kv"><span>Rows</span><span>${fmt.int(r.summary.n_rows)}</span></div>
+      <div class="kv"><span>Errors</span><span>${r.summary.n_errors ? `<span class="badge err">${r.summary.n_errors}</span>` : '<span class="badge ok">0</span>'}</span></div>
+      <div class="kv"><span>Warnings</span><span>${r.summary.n_warnings ? `<span class="badge warn">${r.summary.n_warnings}</span>` : '<span class="badge ok">0</span>'}</span></div>
+      <div class="kv"><span>Status</span><span>${r.status === "validated" ? '<span class="badge ok">validated</span>' : '<span class="badge err">rejected</span>'}</span></div>
+      ${r.missing_columns && r.missing_columns.length ? `<div class="kv"><span>Missing columns</span><span class="mono">${r.missing_columns.join(", ")}</span></div>` : ""}
+      <div class="muted" style="margin-top:10px">${total} issue${total === 1 ? "" : "s"} found for review.</div>
+    `);
+  }
+
+  async function loadIssues() {
+    if (!currentUpload) return;
+    const sev = document.getElementById("sev-filter").value;
+    const q = sev ? `?severity=${sev}` : "";
+    const data = await API.get(`/api/uploads/${currentUpload}/issues${q}`);
+    const tbody = document.querySelector("#issues-table tbody");
+    if (!data.issues.length) {
+      tbody.innerHTML = `<tr><td colspan="8">${emptyState("No issues match the filter.")}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = data.issues.map(i => `
+      <tr data-id="${i.issue_id}">
+        <td class="num">${i.row_index ?? "–"}</td>
+        <td class="mono">${i.column ?? "–"}</td>
+        <td class="mono">${i.value ?? "–"}</td>
+        <td>${fmt.title(i.check)}</td>
+        <td>${i.severity === "error" ? '<span class="badge err">error</span>' : '<span class="badge warn">warning</span>'}</td>
+        <td style="white-space:normal;max-width:340px">${i.message ?? ""}</td>
+        <td>${badgeFor(i.status)}</td>
+        <td>
+          <div class="btn-row">
+            <button class="btn btn-sm" data-act="fix">Fix</button>
+            <button class="btn btn-sm btn-ghost" data-act="ignore">Ignore</button>
+            <button class="btn btn-sm btn-ghost" data-act="exclude">Exclude</button>
+          </div>
+        </td>
+      </tr>`).join("");
+
+    tbody.querySelectorAll("button[data-act]").forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const id = btn.closest("tr").dataset.id;
+        const action = btn.dataset.act;
+        let value = null;
+        if (action === "fix") {
+          value = prompt("New value for this cell:");
+          if (value === null) return;
+        }
+        try {
+          await API.patch(`/api/uploads/${currentUpload}/issues/${id}`, { action, value });
+          toast(`Issue ${action}${action === "fix" ? "ed" : "d"}`, "ok", 2200);
+          await loadIssues();
+        } catch (e) { toast(e.message, "err"); }
+      });
+    });
+  }
+
+  function badgeFor(status) {
+    const map = { open: "warn", fixed: "ok", ignored: "mute", excluded: "err" };
+    return `<span class="badge ${map[status] || "mute"}">${status}</span>`;
+  }
+
+  document.getElementById("sev-filter").addEventListener("change", loadIssues);
+
+  document.getElementById("commit").addEventListener("click", async () => {
+    if (!currentUpload) return;
+    const btn = document.getElementById("commit");
+    btn.disabled = true;
+    try {
+      const r = await API.post(`/api/uploads/${currentUpload}/commit`, { duplicate_policy: "keep_first" });
+      toast(`Committed ${fmt.int(r.inserted)} clean rows`, "ok");
+      await loadUploads();
+      refreshSideStatus();
+    } catch (e) { toast(e.message, "err"); }
+    finally { btn.disabled = false; }
+  });
+
+  document.getElementById("load-sample").addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget;
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Loading…';
+    try {
+      const r = await API.post("/api/datasets/sample");
+      toast(`Loaded ${fmt.int(r.inserted)} synthetic records`, "ok");
+      await loadUploads();
+      refreshSideStatus();
+    } catch (e) { toast(e.message, "err"); }
+    finally { btn.disabled = false; btn.textContent = "Load sample dataset"; }
+  });
+
+  async function loadUploads() {
+    try {
+      const uploads = await API.get("/api/uploads");
+      const tbody = document.querySelector("#uploads-table tbody");
+      if (!uploads.length) { tbody.innerHTML = `<tr><td colspan="7">${emptyState("No uploads yet.")}</td></tr>`; return; }
+      tbody.innerHTML = uploads.map(u => `
+        <tr>
+          <td class="num">${u.upload_id}</td>
+          <td>${u.filename ?? "–"}</td>
+          <td class="num">${fmt.int(u.n_rows)}</td>
+          <td class="num">${u.n_errors}</td>
+          <td class="num">${u.n_warnings}</td>
+          <td>${u.status === "committed" ? '<span class="badge ok">committed</span>' : u.status === "rejected" ? '<span class="badge err">rejected</span>' : '<span class="badge info">validated</span>'}</td>
+          <td>${fmt.date(u.uploaded_at)}</td>
+        </tr>`).join("");
+    } catch (_) {}
+  }
+
+  loadUploads();
+});
+</script>
+</body>
+</html>
