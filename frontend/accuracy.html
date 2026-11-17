@@ -149,7 +149,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       drawChart("chart-year", [
         { x: byYear.map(m => m.scope_value), y: byYear.map(m => m.rmse), type: "scatter", mode: "lines+markers",
           line: { color: THEME.accent3 }, name: "RMSE" },
-      ], { margin: { l: 48, r: 16, t: 30, b: 40 }, yaxis: { title: "RMSE t/ha" }, showlegend: false, title: { text: "RMSE by year", font: { size: 12, color: THEME.text } } });
+      ], { margin: { l: 48, r: 16, t: 30, b: 40 }, yaxis: { title: "RMSE t/ha" }, xaxis: { title: "Year", dtick: 1, tickformat: "d" }, showlegend: false, title: { text: "RMSE by year", font: { size: 12, color: THEME.text } } });
     } else html("chart-year", emptyState("Not enough rows per year."));
   }
 
