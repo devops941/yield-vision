@@ -230,7 +230,7 @@ def _make_engine(db_path: str | Path):
     engine = create_engine(
         f"sqlite:///{db_path}",
         future=True,
-        connect_args={"timeout": 30, "check_same_thread": False},
+        connect_args={"timeout": 60, "check_same_thread": False},
     )
 
     @event.listens_for(engine, "connect")
@@ -238,7 +238,7 @@ def _make_engine(db_path: str | Path):
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA journal_mode=WAL")
         cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute("PRAGMA busy_timeout=30000")
+        cursor.execute("PRAGMA busy_timeout=60000")
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
 

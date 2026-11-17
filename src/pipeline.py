@@ -61,6 +61,24 @@ def main(argv: list[str] | None = None) -> int:
     clean = preprocess(raw)
     print(f"      {len(clean):,} clean rows")
 
+    # Persist clean records into SQLite and mirror to MongoDB
+    from src.data import db as dbmod, mongo
+
+    session = dbmod.get_session()
+    try:
+        filename = Path(args.path).name if args.path else f"{args.source}_dataset.csv"
+        upload = dbmod.create_upload(session, filename, stored_path=None)
+        upload.n_rows = report.n_rows
+        upload.n_errors = report.n_errors
+        upload.n_warnings = report.n_warnings
+        upload.status = "committed"
+        session.flush()
+        dbmod.commit_records(session, upload.upload_id, clean)
+        session.commit()
+        mongo.sync_records(dbmod.load_records_df(session))
+    finally:
+        session.close()
+
     print("[4/5] Engineering features…")
     config = FeatureConfig()
     from src.features.engineer import engineer_features

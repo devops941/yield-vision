@@ -33,48 +33,48 @@ def train_and_register(
     progress: ProgressFn | None = None,
 ) -> dict[str, Any]:
     """Train every model under every scheme, persist versions, metrics and predictions."""
-    session = get_session()
     registered: list[dict[str, Any]] = []
     comparison: dict[str, dict[str, Any]] = {}
     baseline_rmse: dict[str, float] = {}
 
+    total = max(1, len(models) * len(schemes))
+    step = 0
+    per_model_predictions: dict[str, dict[str, np.ndarray]] = {}
+
+    for scheme in schemes:
+        results = train_all_models(
+            df,
+            models=models,
+            scheme=scheme,
+            feature_config=feature_config,
+            tune=tune,
+            test_years=test_years,
+        )
+        # Baseline RMSE for the skill score (best of the two baselines).
+        base_rmses = [
+            r["metrics"]["rmse"]
+            for name, r in results.items()
+            if name.startswith("baseline_") and r["metrics"]["rmse"] is not None
+        ]
+        best_baseline = min(base_rmses) if base_rmses else None
+
+        for name, result in results.items():
+            step += 1
+            if progress:
+                progress(int(100 * step / total), f"{name} / {scheme}")
+            metrics = dict(result["metrics"])
+            if best_baseline and metrics.get("rmse") is not None:
+                metrics["skill_vs_baseline"] = 1.0 - metrics["rmse"] / best_baseline
+            comparison.setdefault(name, {})[scheme] = metrics
+            per_model_predictions.setdefault(name, {})[scheme] = {
+                "y_true": result["y_true"],
+                "y_pred": result["y_pred"],
+                "pipeline": result.get("pipeline"),
+                "test_df": result.get("test_df"),
+            }
+
+    session = get_session()
     try:
-        total = max(1, len(models) * len(schemes))
-        step = 0
-        per_model_predictions: dict[str, dict[str, np.ndarray]] = {}
-
-        for scheme in schemes:
-            results = train_all_models(
-                df,
-                models=models,
-                scheme=scheme,
-                feature_config=feature_config,
-                tune=tune,
-                test_years=test_years,
-            )
-            # Baseline RMSE for the skill score (best of the two baselines).
-            base_rmses = [
-                r["metrics"]["rmse"]
-                for name, r in results.items()
-                if name.startswith("baseline_") and r["metrics"]["rmse"] is not None
-            ]
-            best_baseline = min(base_rmses) if base_rmses else None
-
-            for name, result in results.items():
-                step += 1
-                if progress:
-                    progress(int(100 * step / total), f"{name} / {scheme}")
-                metrics = dict(result["metrics"])
-                if best_baseline and metrics.get("rmse") is not None:
-                    metrics["skill_vs_baseline"] = 1.0 - metrics["rmse"] / best_baseline
-                comparison.setdefault(name, {})[scheme] = metrics
-                per_model_predictions.setdefault(name, {})[scheme] = {
-                    "y_true": result["y_true"],
-                    "y_pred": result["y_pred"],
-                    "pipeline": result.get("pipeline"),
-                    "test_df": result.get("test_df"),
-                }
-
         # Persist one version per model, using the headline (temporal) scheme metrics.
         headline = "temporal" if "temporal" in schemes else schemes[0]
         for name in models:
